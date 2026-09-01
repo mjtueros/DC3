@@ -1,9 +1,14 @@
 # DC3
-Building the tools to create a library that can be used to study the detection efficiency of a given flux.
+Building the tools to create a library that can be used to study the detection efficiency of a given flux of cosmic rays.
 
-For the purpose of this, the flux is considered to be passing through a circular? area on a flat plane
+For the purpose of this, the flux is considered to be passing through an area on a flat plane
 
 The detector will be the antennas, mounted on top of some 3D topography, that is itself mounted on top of a round earth of appropriate radius.
+
+# Development strategy
+Even if it is outdated, we will try to develop using the GitFlow philosophy, with an emphasis on making feature branches as short lived as possible.
+You can learn about GitFlow (and git in general) here https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow
+or in the historic GitFlow post https://nvie.com/posts/a-successful-git-branching-model/
 
 
 # Objectives
