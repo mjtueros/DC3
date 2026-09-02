@@ -2,6 +2,8 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import csv #im using csv because is terribly simple and this is an example. The whole thing could be re-done in pandas, sq3lite, etc
+import random
 
 plt.figure(figsize=(8,6))
 plt.rcParams.update({'font.size': 14})
@@ -9,8 +11,8 @@ plt.rcParams.update({'font.size': 14})
 ###############################################################################################################################################################
 # General Section
 ###############################################################################################################################################################
-Nsims=25000 #250000
-
+Nsims=250 #250000
+OutputFileName= "ExampleFlux.csv"
 
 #######################################################################################################################################
 # Prefix for the library (used only on the task name and filename
@@ -18,7 +20,7 @@ Nsims=25000 #250000
 LibraryPrefix="Xi" #Lenghu
 
 #########################################################################################################################################
-# MODEL section (this is used only in the file name for now, as the actual binary used to run the sim is set in the library ini
+# MODEL section (this is used only in the file name for now, as the actual binary used to run the sim depends on the simulator binary
 #######################################################################################################################################
 ModelBins=["Sib"]
 #
@@ -136,46 +138,45 @@ print("#########################################################################
 #######################################################################################################################################################################################
 #nothing to customize from here on
 #######################################################################################################################################################################################
-print("about to start generating the input files. If you are happy with this settings press enter, if not...kill the program now!")
+print("about to generate the flux. If you are happy with this settings press enter, if not...kill the program now!")
 sys.stdin.readline()
 
+counter=0
+filename=OutputFileName
+while os.path.exists(OutputFileName):
+    OutputFileName = f"{counter_}{filename}"
+    print(filename,"exists, renaming to",OutputFileName)
+    counter += 1
 
-for i in range(0,Nsims):
 
+with open(OutputFileName, mode="w", newline="", encoding="utf-8") as file:
+  writer = csv.writer(file)
+  writer.writerow(["EventNumber","EventName","RandomSeed","EventWeight","Primary [Type]","Energy [EeV]", "Zenith [Deg]", "Azimuth [Deg, Geomagnetic]", "Model"])
+
+  for i in range(0,Nsims):
+  
+  
+            RandomSeed=random.random()
+           
+            EventWeight=1                 #for now, im generating all events equal, acording to the stated distributions
 
             Energy=float(RandomEnergies[i])
             Zenith=float(RandomZeniths[i])
             Azimuth=float(RandomAzimuths[i])
+            RandomSeed=f"{RandomSeed:.10f}"
 
             Energystring='{0:.3}'.format(Energy)
             Zenithstring='{0:.3}'.format(Zenith)
             Azimuthstring='{0:.4}'.format(Azimuth)
             
-            print(i%len(PrimaryBins))
             Primary=PrimaryBins[i%len(PrimaryBins)] #this will cycle over all values of PrimaryBins
-            print(i%len(PrimaryBins))
             Model=ModelBins[i%len(ModelBins)] #this will cycle over all values of ModelBins
             
-            repetition=i
+            EventNumber=i
 
-            TaskName=LibraryPrefix+"_"+str(Model)+"_"+str(Primary)+"_"+str(Energystring)+"_"+str(Zenithstring)+"_"+str(Azimuthstring)+"_"+str(repetition)
-            print(TaskName)
-            outputinp=OutDir+"/"+TaskName+".inp"
-            #CreateAiresInputHeader(TaskName, Primary, Zenith, Azimuth, Energy, RandomSeed=0, OutputFile="TestInput.inp", OutMode="a" ):
-            AiresInp.CreateAiresInputHeader(TaskName, Primary, Zenith, Azimuth, Energy,OutputFile=outputinp)
+            EventName=LibraryPrefix+"_"+str(Model)+"_"+str(Primary)+"_"+str(Energystring)+"_"+str(Zenithstring)+"_"+str(Azimuthstring)+"_"+str(EventNumber)
 
-
-            #put the skeleton on it
-            file= open(outputinp,"a")
-            file.write('#Skeleton Follows ##############################################################\n')
-            file.close()
-
-            fin = open(SkeletonFile, "r")
-            data = fin.read()
-            fin.close()
-            fout = open(outputinp, "a")
-            fout.write(data)
-            fout.close()
+            writer.writerow([EventNumber,EventName,RandomSeed,EventWeight,Primary, Energy, Zenith,Azimuth, Model])
 
 
 
