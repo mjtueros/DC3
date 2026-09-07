@@ -114,7 +114,7 @@ def find_distance_to_xmax(
 
 REQUIRED_COLUMNS = (
     "Primary [Type]",
-    "Energy [GeV]",
+    "Energy [EeV]",
     "Zenith [Deg]",
 )
 
