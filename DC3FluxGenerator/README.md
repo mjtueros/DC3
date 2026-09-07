@@ -2,7 +2,8 @@
 # Objectives
 
 - Create a DC3FluxGenerator, that creates event geometries and energies according to some distributions.
-  -- It outputs a database with Primary, Energy, LocalZenith, LocalAzimuth, EventWeight, RandomSeed
+  -- It outputs a database with EventNumber, EventName, RandomSeed, EventWeight, Primary, Energy, LocalZenith, LocalAzimuth, HadronicModel
+  
   -- The output should be done in a way that can be parsed to generate ZHAireS or CoREAS inputs to simulate the showers
 
   -- It should have "dry run" mode where plots of the generated distributions are produced, but no files, to be able to play with the parameters.
