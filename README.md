@@ -10,6 +10,8 @@ Even if it is outdated, we will try to develop using the GitFlow philosophy, wit
 You can learn about GitFlow (and git in general) here https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow
 or in the historic GitFlow post https://nvie.com/posts/a-successful-git-branching-model/
 
+Note: Due to the develop branch protection  direct commits, you cannot use gitflow feature finish command.
+You need to do gitflow feature publish, then manually open a pull request to develop and once this is merged manually delete de branch
 
 # Objectives
 - Create a DC3FluxGenerator, that creates event geometries and energies according to some distributions.
