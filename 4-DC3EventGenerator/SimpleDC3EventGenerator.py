@@ -147,7 +147,7 @@ def init_database(db_path):
 # ==============================================================================
 def main():
     parser = argparse.ArgumentParser(description="Monte Carlo Core Drop and Antenna Trigger Simulator")
-    parser.add_argument("events_csv", type=str, help="Input library of events (CSV)")
+    parser.add_argument("events_db", type=str, help="Input library of events (SQLite Database)")
     parser.add_argument("antennas_csv", type=str, help="Input antenna positions (CSV)")
     parser.add_argument("--out-db", type=str, default="TriggeredEvents.sqlite", help="Output SQLite database")
     
@@ -188,102 +188,111 @@ def main():
     out_zen, out_egy, out_wgt = [], [], []
 
     # 3. LOOP EVENTS
-    print(f"Processing events from {args.events_csv} (Reuse factor: {args.reuse})...")
+    print(f"Processing events from {args.events_db} (Reuse factor: {args.reuse})...")
     center_pos = np.array([args.center_e, args.center_n, args.center_u])
     
     success_count = 0
-    with open(args.events_csv, mode='r') as f:
-        reader = csv.DictReader(f)
-        
-        for i, row in enumerate(reader):
-            xmax_dist_km = float(row['XmaxDistance [km]'])
-            if not (args.dist_min <= xmax_dist_km <= args.dist_max):
-                continue
-
-            # Read parameters directly (Assuming GRAND coords already)
-            zenith = float(row['Zenith [Deg]'])
-            azimuth = float(row['Azimuth [Deg, Geomagnetic]'])
-            energy = float(row['Energy [EeV]'])
-            original_weight = float(row['EventWeight'])
+    
+    # Read events from the SQLite database
+    conn_in = sqlite3.connect(args.events_db)
+    conn_in.row_factory = sqlite3.Row
+    cursor_in = conn_in.cursor()
+    cursor_in.execute("SELECT * FROM Events")
+    
+    for i, row in enumerate(cursor_in.fetchall()):
+        if row['XmaxDistance_km'] is None:
+            continue
             
-            theta_rad = np.radians(zenith)
-            phi_rad = np.radians(azimuth)
-            k_vector = np.array([
-                np.sin(theta_rad) * np.cos(phi_rad),
-                np.sin(theta_rad) * np.sin(phi_rad),
-                np.cos(theta_rad)
-            ])
+        xmax_dist_km = float(row['XmaxDistance_km'])
+        if not (args.dist_min <= xmax_dist_km <= args.dist_max):
+            continue
 
-            # EVENT REUSE LOOP
-            for reuse_idx in range(args.reuse):
-                triggered = False
-                tested_cores = []
-                
-                # Dry run stats (Input)
-                if args.dry_run:
-                    in_zen.append(zenith)
-                    in_egy.append(energy)
-                    in_wgt.append(original_weight)
-                
-                for try_idx in range(1, args.max_tries + 1):
-                    core_pos = rand_in_hex(center_pos, args.hex_size)
-                    tested_cores.append(core_pos)
-                    
-                    xmax_pos = core_pos - (xmax_dist_km * 1000.0 * k_vector)
-                    trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, args.cone_angle)
-                    
-                    if len(trig_idx) >= args.min_trigger:
-                        triggered = True
-                        break
+        # Read parameters directly (Assuming GRAND coords already)
+        zenith = float(row['Zenith_Deg'])
+        azimuth = float(row['Azimuth_Deg'])
+        energy = float(row['Energy_EeV'])
+        original_weight = float(row['EventWeight'])
+        
+        theta_rad = np.radians(zenith)
+        phi_rad = np.radians(azimuth)
+        k_vector = np.array([
+            np.sin(theta_rad) * np.cos(phi_rad),
+            np.sin(theta_rad) * np.sin(phi_rad),
+            np.cos(theta_rad)
+        ])
 
-                # Handle Weights & Failed Triggers
+        # EVENT REUSE LOOP
+        for reuse_idx in range(args.reuse):
+            triggered = False
+            tested_cores = []
+            
+            # Dry run stats (Input)
+            if args.dry_run:
+                in_zen.append(zenith)
+                in_egy.append(energy)
+                in_wgt.append(original_weight)
+            
+            for try_idx in range(1, args.max_tries + 1):
+                core_pos = rand_in_hex(center_pos, args.hex_size)
+                tested_cores.append(core_pos)
+                
+                xmax_pos = core_pos - (xmax_dist_km * 1000.0 * k_vector)
+                trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, args.cone_angle)
+                
+                if len(trig_idx) >= args.min_trigger:
+                    triggered = True
+                    break
+
+            # Handle Weights & Failed Triggers
+            if triggered:
+                new_weight = original_weight * (1.0 / try_idx)
+                success_count += 1
+            else:
+                new_weight = 0.0 # Failed to trigger
+
+            # If dry run, save data for plots
+            if args.dry_run:
+                plot_all_cores.extend(tested_cores)
                 if triggered:
-                    new_weight = original_weight * (1.0 / try_idx)
-                    success_count += 1
-                else:
-                    new_weight = 0.0 # Failed to trigger
+                    plot_triggered_cores.append(core_pos)
+                    out_zen.append(zenith)
+                    out_egy.append(energy)
+                    out_wgt.append(new_weight)
 
-                # If dry run, save data for plots
-                if args.dry_run:
-                    plot_all_cores.extend(tested_cores)
-                    if triggered:
-                        plot_triggered_cores.append(core_pos)
-                        out_zen.append(zenith)
-                        out_egy.append(energy)
-                        out_wgt.append(new_weight)
-
-                # Save to Database
-                if not args.dry_run:
-                    unique_event_name = f"{row['EventName']}_r{reuse_idx}"
-                    
-                    cursor.execute("""
-                        INSERT INTO Events (OriginalEventName, PrimaryType, Energy_EeV, Zenith, Azimuth, 
-                                            Core_E, Core_N, Core_U, Xmax_E, Xmax_N, Xmax_U, Weight, RandomSeed, Tries)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        unique_event_name, row['Primary [Type]'], energy, zenith, azimuth,
-                        core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
-                        new_weight, row['RandomSeed'], try_idx
-                    ))
-                    event_id = cursor.lastrowid
-                    
-                    # Only insert antennas if it actually triggered
-                    if triggered:
-                        ant_inserts = []
-                        for idx, amp in zip(trig_idx, amplitudes):
-                            rel_pos = ant_pos[idx] - core_pos
-                            ant_inserts.append((event_id, ant_ids[idx], rel_pos[0], rel_pos[1], rel_pos[2], amp))
-                            
-                        cursor.executemany("""
-                            INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_E, Rel_N, Rel_U, Amplitude)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, ant_inserts)
-                        print(f"Event {unique_event_name} triggered on try {try_idx} with {len(trig_idx)} antennas.")
-                    
-                    # Always save tested cores
-                    core_inserts = [(event_id, c[0], c[1]) for c in tested_cores]
-                    cursor.executemany("INSERT INTO TestedCores (EventID, Core_E, Core_N) VALUES (?, ?, ?)", core_inserts)
-                    conn.commit()
+            # Save to Database
+            if not args.dry_run:
+                unique_event_name = f"{row['EventName']}_r{reuse_idx}"
+                
+                cursor.execute("""
+                    INSERT INTO Events (OriginalEventName, PrimaryType, Energy_EeV, Zenith, Azimuth, 
+                                        Core_E, Core_N, Core_U, Xmax_E, Xmax_N, Xmax_U, Weight, RandomSeed, Tries)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    unique_event_name, row['PrimaryType'], energy, zenith, azimuth,
+                    core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
+                    new_weight, row['RandomSeed'], try_idx
+                ))
+                event_id = cursor.lastrowid
+                
+                # Only insert antennas if it actually triggered
+                if triggered:
+                    ant_inserts = []
+                    for idx, amp in zip(trig_idx, amplitudes):
+                        rel_pos = ant_pos[idx] - core_pos
+                        ant_inserts.append((event_id, ant_ids[idx], rel_pos[0], rel_pos[1], rel_pos[2], amp))
+                        
+                    cursor.executemany("""
+                        INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_E, Rel_N, Rel_U, Amplitude)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, ant_inserts)
+                    print(f"Event {unique_event_name} triggered on try {try_idx} with {len(trig_idx)} antennas.")
+                
+                # Always save tested cores
+                core_inserts = [(event_id, c[0], c[1]) for c in tested_cores]
+                cursor.executemany("INSERT INTO TestedCores (EventID, Core_E, Core_N) VALUES (?, ?, ?)", core_inserts)
+                conn.commit()
+                
+    conn_in.close()
 
     # 4. WRAP UP & PLOTTING
     if args.dry_run:
