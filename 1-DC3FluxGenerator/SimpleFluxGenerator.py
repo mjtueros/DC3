@@ -6,7 +6,7 @@
 # This script generates a database of initial configurations for cosmic ray 
 # air shower simulations. It draws event parameters (Energy, Zenith, Azimuth, 
 # Particle Type) randomly from specific mathematical distributions and saves 
-# them to a simple CSV file.
+# them to a SQLite database file.
 #
 # Energy is distributed as uniform in log10 in the given range
 # Zenith is distributed as uniform in log10(1/cos(Zenith)) in the given range
@@ -17,7 +17,7 @@
 # Inputs (Configured via variables in the script):
 # ------------------------------------------------
 # - Nsims: Integer. The total number of simulation events to generate.
-# - OutputFileName: String. The base name of the output CSV file.
+# - OutputFileName: String. The base name of the output SQLite file.
 # - LibraryPrefix: String. A prefix used to construct the unique EventName.
 # - ModelBins: List of Strings. Interaction models (e.g., ["Sib"] for Sybill).
 # - Zenith limits (mintheta, maxtheta): Floats. Range in degrees.
@@ -29,9 +29,9 @@
 # ------------------------------------------------
 # 1. Plots: Displays a series of Matplotlib histograms so the user can visually 
 #    inspect and verify the generated distributions (dry-run style) before saving.
-# 2. Output CSV File: A comma-separated values file containing all events.
-#    Columns include: EventNumber, EventName, RandomSeed, EventWeight, Primary, 
-#    Energy [EeV], Zenith [Deg], Azimuth [Deg], Model.
+# 2. Output SQLite File: A database containing all events.
+#    Columns include: EventNumber, EventName, RandomSeed, EventWeight, PrimaryType, 
+#    Energy_EeV, Zenith_Deg, Azimuth_Deg, Model.
 ################################################################################
 """
 
@@ -39,7 +39,7 @@ import sys
 import os 
 import numpy as np
 import matplotlib.pyplot as plt
-import csv # Using csv because it is terribly simple and great for examples
+import sqlite3 # Replaced csv with sqlite3
 import random
 
 # Set up global plotting parameters for readability
@@ -52,7 +52,7 @@ plt.rcParams.update({'font.size': 14})
 # Number of events to generate in this run
 Nsims = 250 # e.g. 250000
 # Default output file name
-OutputFileName = "ExampleFlux.csv"
+OutputFileName = "ExampleFlux.sqlite"
 
 ################################################################################
 # Prefix for the library (used only on the task name and filename)
@@ -212,59 +212,79 @@ counter = 0
 filename = OutputFileName
 # Keep checking until we find a filename that isn't taken
 while os.path.exists(OutputFileName):
-    # (Fixed tiny typo here: changed counter_ to counter to match variable)
     OutputFileName = f"{counter}_{filename}"
     print(filename, "exists, renaming to", OutputFileName)
     counter += 1
 
-# Open the chosen output CSV file and write the data
-with open(OutputFileName, mode="w", newline="", encoding="utf-8") as file:
-    writer = csv.writer(file)
+# Open the chosen output SQLite database and create the table
+conn = sqlite3.connect(OutputFileName)
+cursor = conn.cursor()
+
+# Write the column headers as an SQL Table
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS Events (
+        EventNumber INTEGER PRIMARY KEY,
+        EventName TEXT,
+        RandomSeed TEXT,
+        EventWeight REAL,
+        PrimaryType TEXT,
+        Energy_EeV REAL,
+        Zenith_Deg REAL,
+        Azimuth_Deg REAL,
+        Model TEXT
+    )
+""")
+
+events_data = []
+
+# Loop over every generated event
+for i in range(0, Nsims):
     
-    # Write the column headers
-    writer.writerow([
-        "EventNumber", "EventName", "RandomSeed", "EventWeight", 
-        "Primary [Type]", "Energy [EeV]", "Zenith [Deg]", 
-        "Azimuth [Deg, Geomagnetic]", "Model"
-    ])
+    # Draw a uniform random seed [0.0, 1.0) for the simulator
+    RandomSeed = random.random()
+    
+    # For this simple generation, all weights start equally at 1
+    EventWeight = 1.0 
 
-    # Loop over every generated event
-    for i in range(0, Nsims):
-        
-        # Draw a uniform random seed [0.0, 1.0) for the simulator
-        RandomSeed = random.random()
-        
-        # For this simple generation, all weights start equally at 1
-        EventWeight = 1 
+    # Extract parameters for the current event
+    Energy = float(RandomEnergies[i])
+    Zenith = float(RandomZeniths[i])
+    Azimuth = float(RandomAzimuths[i])
+    
+    # Format the numbers to strings with specific precision 
+    # (useful for keeping file names tidy)
+    RandomSeed_str = f"{RandomSeed:.10f}"
+    Energystring = '{0:.3}'.format(Energy)
+    Zenithstring = '{0:.3}'.format(Zenith)
+    Azimuthstring = '{0:.4}'.format(Azimuth)
+    
+    # Cycle through the list of primary particles and models
+    # i % len() yields 0, 1, 0, 1... ensuring an exactly even split
+    Primary = PrimaryBins[i % len(PrimaryBins)] 
+    Model = ModelBins[i % len(ModelBins)] 
+    
+    EventNumber = i
 
-        # Extract parameters for the current event
-        Energy = float(RandomEnergies[i])
-        Zenith = float(RandomZeniths[i])
-        Azimuth = float(RandomAzimuths[i])
-        
-        # Format the numbers to strings with specific precision 
-        # (useful for keeping file names tidy)
-        RandomSeed_str = f"{RandomSeed:.10f}"
-        Energystring = '{0:.3}'.format(Energy)
-        Zenithstring = '{0:.3}'.format(Zenith)
-        Azimuthstring = '{0:.4}'.format(Azimuth)
-        
-        # Cycle through the list of primary particles and models
-        # i % len() yields 0, 1, 0, 1... ensuring an exactly even split
-        Primary = PrimaryBins[i % len(PrimaryBins)] 
-        Model = ModelBins[i % len(ModelBins)] 
-        
-        EventNumber = i
+    # Build a descriptive unique name for this specific event
+    EventName = (LibraryPrefix + "_" + str(Model) + "_" + str(Primary) + "_" + 
+                 str(Energystring) + "_" + str(Zenithstring) + "_" + 
+                 str(Azimuthstring) + "_" + str(EventNumber))
 
-        # Build a descriptive unique name for this specific event
-        EventName = (LibraryPrefix + "_" + str(Model) + "_" + str(Primary) + "_" + 
-                     str(Energystring) + "_" + str(Zenithstring) + "_" + 
-                     str(Azimuthstring) + "_" + str(EventNumber))
+    # Add row to our SQLite insert batch
+    events_data.append((
+        EventNumber, EventName, RandomSeed_str, EventWeight, 
+        Primary, Energy, Zenith, Azimuth, Model
+    ))
 
-        # Write out the row to the CSV
-        writer.writerow([
-            EventNumber, EventName, RandomSeed_str, EventWeight, 
-            Primary, Energy, Zenith, Azimuth, Model
-        ])
+# Write out the rows to the Database
+cursor.executemany("""
+    INSERT INTO Events (
+        EventNumber, EventName, RandomSeed, EventWeight, 
+        PrimaryType, Energy_EeV, Zenith_Deg, Azimuth_Deg, Model
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+""", events_data)
+
+conn.commit()
+conn.close()
 
 print(f"Success! {Nsims} events written to {OutputFileName}")

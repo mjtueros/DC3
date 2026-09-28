@@ -2,14 +2,14 @@
 SimpleXmaxGetter.py
 
 Usage:
-    python3 SimpleXmaxGetter.py InputFlux.csv OutputFluxWithXmax.csv
+    python3 SimpleXmaxGetter.py InputFlux.sqlite OutputFluxWithXmax.sqlite
 
 With no arguments, the script shows the original Xmax diagnostic plots and
 prints the correct command-line syntax.
 """
 
 import sys
-import csv
+import sqlite3
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
@@ -109,29 +109,29 @@ def find_distance_to_xmax(
 
 
 # ==============================================================================
-# 4. CSV PROCESSING
+# 4. SQLITE PROCESSING
 # ==============================================================================
 
 REQUIRED_COLUMNS = (
-    "Primary [Type]",
-    "Energy [EeV]",
-    "Zenith [Deg]",
+    "PrimaryType",
+    "Energy_EeV",
+    "Zenith_Deg",
 )
 
 
 def calculate_event_xmax(row):
     """
-    Calculate Xmax for one CSV event.
+    Calculate Xmax for one SQLite event.
 
-    Energy is read from the CSV in GeV and converted to eV before calling
+    Energy is read from the SQLite DB in EeV and converted to eV before calling
     the existing Xmax model.
 
     Returns distance to xmax[km], altitude
     """
 
-    energy_eV = float(row["Energy [EeV]"]) * 1.0e18
-    particle_type = row["Primary [Type]"]
-    zenith_deg = float(row["Zenith [Deg]"])
+    energy_eV = float(row["Energy_EeV"]) * 1.0e18
+    particle_type = row["PrimaryType"]
+    zenith_deg = float(row["Zenith_Deg"])
 
     distance, altitude, xmax = find_distance_to_xmax(
         energy_eV,
@@ -143,78 +143,96 @@ def calculate_event_xmax(row):
     return distance, altitude, xmax
 
 
-def process_csv(input_file, output_file):
-    with open(input_file, "r", newline="", encoding="utf-8") as infile:
-        reader = csv.DictReader(infile)
+def process_sqlite(input_file, output_file):
+    conn_in = sqlite3.connect(input_file)
+    conn_in.row_factory = sqlite3.Row
+    cursor_in = conn_in.cursor()
+    
+    # Check if 'Events' table exists
+    cursor_in.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Events'")
+    if not cursor_in.fetchone():
+        raise ValueError("Input Database does not contain an 'Events' table.")
 
-        if reader.fieldnames is None:
-            raise ValueError("Input CSV does not contain a header row.")
+    # Check for missing required columns
+    cursor_in.execute("PRAGMA table_info(Events)")
+    columns = [col[1] for col in cursor_in.fetchall()]
 
-        missing_columns = [
-            column for column in REQUIRED_COLUMNS
-            if column not in reader.fieldnames
-        ]
+    missing_columns = [
+        column for column in REQUIRED_COLUMNS
+        if column not in columns
+    ]
 
-        if missing_columns:
-            raise ValueError(
-                "Input CSV is missing required column(s): "
-                + ", ".join(missing_columns)
+    if missing_columns:
+        raise ValueError(
+            "Input DB is missing required column(s): "
+            + ", ".join(missing_columns)
+        )
+
+    # Fetch all events
+    cursor_in.execute("SELECT * FROM Events")
+    rows = cursor_in.fetchall()
+
+    conn_out = sqlite3.connect(output_file)
+    cursor_out = conn_out.cursor()
+
+    cursor_out.execute("""
+        CREATE TABLE IF NOT EXISTS Events (
+            EventNumber INTEGER PRIMARY KEY,
+            EventName TEXT,
+            RandomSeed TEXT,
+            EventWeight REAL,
+            PrimaryType TEXT,
+            Energy_EeV REAL,
+            Zenith_Deg REAL,
+            Azimuth_Deg REAL,
+            Model TEXT,
+            Xmax_g_cm2 REAL,
+            XmaxAltitude_km REAL,
+            XmaxDistance_km REAL
+        )
+    """)
+
+    print(f"Reading events from '{input_file}'...")
+    print("Computing Xmax...")
+
+    n_events = 0
+    n_errors = 0
+    events_data = []
+
+    for row in rows:
+        n_events += 1
+        try:
+            distance, alt, xmax = calculate_event_xmax(row)
+        except Exception as exc:
+            event_id = row["EventNumber"]
+            print(
+                f"WARNING: could not calculate Xmax for "
+                f"event {event_id}: {exc}"
             )
+            distance, alt, xmax = None, None, None
+            n_errors += 1
 
-        fieldnames = list(reader.fieldnames)
+        events_data.append((
+            row["EventNumber"], row["EventName"], row["RandomSeed"], row["EventWeight"],
+            row["PrimaryType"], row["Energy_EeV"], row["Zenith_Deg"], row["Azimuth_Deg"], 
+            row["Model"], xmax, alt, distance
+        ))
 
-        if "Xmax [g/cm2]" not in fieldnames:
-            fieldnames.append("Xmax [g/cm2]")
+        if n_events % 100 == 0:
+            print(f"  Processed {n_events} events")
 
-        if "XmaxAltitude [km]" not in fieldnames:
-            fieldnames.append("XmaxAltitude [km]")
+    # Insert computed events into the output DB
+    cursor_out.executemany("""
+        INSERT INTO Events (
+            EventNumber, EventName, RandomSeed, EventWeight, 
+            PrimaryType, Energy_EeV, Zenith_Deg, Azimuth_Deg, Model,
+            Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, events_data)
 
-
-        if "XmaxDistance [km]" not in fieldnames:
-            fieldnames.append("XmaxDistance [km]")
-
-
-        with open(
-            output_file, "w", newline="", encoding="utf-8"
-        ) as outfile:
-            writer = csv.DictWriter(
-                outfile,
-                fieldnames=fieldnames,
-                extrasaction="ignore",
-            )
-            writer.writeheader()
-
-            print(f"Reading events from '{input_file}'...")
-            print("Computing Xmax...")
-
-            n_events = 0
-            n_errors = 0
-
-            for n_events, row in enumerate(reader, start=1):
-                try:
-                    distance, altitude, xmax = calculate_event_xmax(row)
-                    
-                    row["Xmax [g/cm2]"] = xmax
-                    row["XmaxAltitude [km]"] = altitude
-                    row["XmaxDistance [km]"] = distance
-                     
-
-                except Exception as exc:
-                    event_id = row.get("EventNumber", str(n_events - 1))
-                    print(
-                        f"WARNING: could not calculate Xmax for "
-                        f"event {event_id}: {exc}"
-                    )
-                    row["Xmax [g/cm2]"] = ""
-                    row["XmaxAltitude [km]"] = ""
-                    row["XmaxDistance [km]"] = ""
-                    
-                    n_errors += 1
-
-                writer.writerow(row)
-
-                if n_events % 100 == 0:
-                    print(f"  Processed {n_events} events")
+    conn_out.commit()
+    conn_in.close()
+    conn_out.close()
 
     print(f"Done. Processed {n_events} events.")
     if n_errors:
@@ -359,9 +377,9 @@ def show_plots():
 
 def print_usage():
     print(
-        "Usage for CSV processing:\n"
+        "Usage for DB processing:\n"
         "  python3 SimpleXmaxGetter.py "
-        "InputFlux.csv OutputFluxWithXmax.csv\n"
+        "InputFlux.sqlite OutputFluxWithXmax.sqlite\n"
     )
     print("No arguments given: showing the Xmax diagnostic plots.\n")
 
@@ -372,12 +390,10 @@ if __name__ == "__main__":
         show_plots()
     elif len(sys.argv) == 3:
         try:
-            process_csv(sys.argv[1], sys.argv[2])
+            process_sqlite(sys.argv[1], sys.argv[2])
         except Exception as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             sys.exit(1)
     else:
         print_usage()
         sys.exit(1)
-
-
