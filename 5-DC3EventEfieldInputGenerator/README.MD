@@ -1,6 +1,5 @@
 
-# ZHAireS Input Generator (`SimpleDC3ZHAireSRadioEvetGenerator.py`)
-
+# ZHAireS Input Generator 
 This script acts as the final bridge in the Monte Carlo event generation pipeline. It reads the SQLite database containing successfully triggered events and marries that geometric data with a ZHAireS "skeleton" template to produce ready-to-run `.inp` files.
 
 ## Features
