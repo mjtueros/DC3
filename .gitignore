@@ -1,0 +1,6 @@
+# Jupyter temp files
+*.ipynb_checkpoints/
+.ipynb_checkpoints/
+*.ipynb~
+*.ipynb.bak
+*.bak
