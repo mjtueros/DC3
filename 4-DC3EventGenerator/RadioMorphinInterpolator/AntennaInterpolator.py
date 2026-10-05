@@ -2,8 +2,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import glob
-from scipy.signal import hilbert
 import subprocess
+from scipy.signal import butter, lfilter
 
 def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Altitude, Fluctuations, AntennaPositions):
     """
@@ -30,7 +30,7 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
 
     Returns:
     --------
-    IndividualTraces : array (N, 4, 1999)
+    IndividualTraces : numpy array (N, 4, 1999)
         Traces for each antenna, in the same order as in AntennaPositions, such that IndividualTraces[i] = [t, Ex, Ey, Ez], with time in ns and E in µV/m.
     """
     
@@ -76,11 +76,68 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
     
         IndividualTraces = IndividualTraces + [[t, Ex, Ey, Ez]]
         
-        #module = np.sqrt(Ex**2 + Ey**2 + Ez**2)
-        #Etotal = Etotal + [[module]]
-        #Emax = Emax + [max(module)]
-    
-    return IndividualTraces
+    return np.array(IndividualTraces)
 
-def TriggeredAntennas(
+
+def ButterFilter(Trace, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
+    """
+    Performs a butterworth filter using scipy.signal.butter module. It is a causal filter.
+
+    Parameters:
+    -----------
+    Trace : array (1D)
+        Array with an individual trace's data
+    Lowcut : float
+        Low cut frecuency of the bandpass filter in Hz, 30Mhz by default.
+    Highcut : float
+        High cut frecuency of the bandpass filter in Hz, 80Mhz by default.
+    fs : float
+        Sampling frecuency of the signal in Hz, 2GHz by default.
+        
+    Returns:
+    --------
+    filtered signal : array (1D)
+        Filtered trace.
+    """
+    b, a = butter(5, [Lowcut, Highcut], btype='band')  # (order, [low, high], btype)
+
+    return lfilter(b, a, data)
+
+
+def TriggeredAntennas(IndividualTraces, AntennaPositions, Threshold = 12, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
+    """
+    Performs a butterworth filter using scipy.signal.butter module. It is a causal filter.
+
+    Parameters:
+    -----------
+    IndividualTraces : array (N, 4, )
+        RadioMorphing output from AntennaInterpolator, containing all traces.
+    AntennaPositions : array (N, 3)
+        List of N antenna positions (Northing, Westing, Up) in meters.
+    Threshold : float
+        Threshold for the trigger in µV/m, 12 by default.
+    Filter : boolean
+        Boolean to choose whether to apply a butterworth filter to the traces before the trigger, False by default.
+    Lowcut : float
+        Low cut frecuency of the bandpass filter in Hz, 30Mhz by default.
+    Highcut : float
+        High cut frecuency of the bandpass filter in Hz, 80Mhz by default.
+    fs : float
+        Sampling frecuency of the signal in Hz, 2GHz by default.
+    """
+    
+    TriggeredAntennas = []    
+    for i in range(len(IndividualTraces)):
+        [t, Ex, Ey, Ez] = IndividualTraces[i]
+        
+        if Filter = True:
+            Ex = ButterFilter(Ex, Lowcut, Highcut, fs)
+            Ey = ButterFilter(Ey, Lowcut, Highcut, fs)
+            Ez = ButterFilter(Ez, Lowcut, Highcut, fs)
+            
+        module = np.sqrt(Ex**2 + Ey**2 + Ez**2)
+        if max(module) > 12:
+            TriggeredAntennas = TriggeredAntennas + [AntennaPositions[i]]
+    
+    return TriggeredAntennas
 
