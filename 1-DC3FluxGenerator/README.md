@@ -1,13 +1,20 @@
+# DC3 Flux Generator
 
-# Objectives
+Generates a library of initial cosmic ray events (geometries, energies, particle types, and seeds) according to mathematical sampling distributions and writes them to an SQLite database.
 
-- Create a DC3FluxGenerator, that creates event geometries and energies according to some distributions.
-  -- It outputs a database with EventNumber, EventName, RandomSeed, EventWeight, Primary, Energy, LocalZenith, LocalAzimuth, HadronicModel
-  
-  -- The output should be done in a way that can be parsed to generate ZHAireS or CoREAS inputs to simulate the showers
+## Usage
 
-  -- It should have "dry run" mode where plots of the generated distributions are produced, but no files, to be able to play with the parameters.
+Run the script by passing the path to the `.ini` configuration file:
 
-  -- This will be used to then simulate showers to get their Xmax and Seed. This is the starting flux for our library.
+```bash
+python3 SimpleFluxGenerator.py <config.ini>
+```
 
-  -- It would be desirable to have the possibility to extend the parameter space, or increase the statistics in a given region of the space with computation of the required weight re-normalization
+**Example from repository root:**
+```bash
+python3 1-DC3FluxGenerator/SimpleFluxGenerator.py Example_dc3_config.ini
+```
+
+## Configuration
+
+All configurable parameters (number of events, energy bounds, zenith and azimuth limits, primary particle types, hadronic interaction models, output file name, and plot display) are specified and explained under the `[FluxGenerator]` section of the `.ini` file.
