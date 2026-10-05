@@ -59,7 +59,7 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
 
     ### Interpolation
     path_to_run = os.path.join(RadioMorphingPath, 'Scripts/RunRadioMorphing.py')
-    subprocess.run(['python', path_to_run], cwd=os.path.join(RadioMorphingPath, 'Scripts/')
+    subprocess.run(['python', path_to_run], cwd=os.path.join(RadioMorphingPath, 'Scripts/'))
 
     ### Read traces
     TracesPath = os.path.join(RadioMorphingPath, "OutputDirectory/")
@@ -79,7 +79,7 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
     return np.array(IndividualTraces)
 
 
-def ButterFilter(Trace, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
+def ButterFilter(Trace, Lowcut = 30e6, Highcut = 200e6, fs = 2e9):
     """
     Performs a butterworth filter using scipy.signal.butter module. It is a causal filter.
 
@@ -90,7 +90,7 @@ def ButterFilter(Trace, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
     Lowcut : float
         Low cut frecuency of the bandpass filter in Hz, 30Mhz by default.
     Highcut : float
-        High cut frecuency of the bandpass filter in Hz, 80Mhz by default.
+        High cut frecuency of the bandpass filter in Hz, 200Mhz by default.
     fs : float
         Sampling frecuency of the signal in Hz, 2GHz by default.
         
@@ -99,9 +99,9 @@ def ButterFilter(Trace, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
     filtered signal : array (1D)
         Filtered trace.
     """
-    b, a = butter(5, [Lowcut, Highcut], btype='band')  # (order, [low, high], btype)
+    b, a = butter(5, [Lowcut, Highcut], btype = 'band', fs = fs)  # (order, [low, high], btype)
 
-    return lfilter(b, a, data)
+    return lfilter(b, a, Trace)
 
 
 def TriggeredAntennas(IndividualTraces, AntennaPositions, Threshold = 12, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
@@ -130,7 +130,7 @@ def TriggeredAntennas(IndividualTraces, AntennaPositions, Threshold = 12, Filter
     for i in range(len(IndividualTraces)):
         [t, Ex, Ey, Ez] = IndividualTraces[i]
         
-        if Filter = True:
+        if Filter == True:
             Ex = ButterFilter(Ex, Lowcut, Highcut, fs)
             Ey = ButterFilter(Ey, Lowcut, Highcut, fs)
             Ez = ButterFilter(Ez, Lowcut, Highcut, fs)
