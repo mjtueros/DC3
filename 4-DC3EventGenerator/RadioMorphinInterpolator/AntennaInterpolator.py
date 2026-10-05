@@ -6,7 +6,34 @@ from scipy.signal import hilbert
 import subprocess
 
 def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Altitude, Fluctuations, AntennaPositions):
+    """
+    Performs RadioMorphing interpolation with given parameters and antenna positions and returns an array of traces for each antenna.
+    
+    Parameters:
+    -----------
+    RadioMorphingPath : str
+        Path to local RadioMorphing instalation folder
+    Primary : str
+        Primary of synthesized shower, 'Iron' or 'Proton'
+    Energy : str or float
+        Energy in EeV.
+    Zenith : str or float
+        Degrees in cosmic ray convention (0 is vertical, 90 is horizontal).
+    Azimuth : str or float
+        Degrees (0 is propagation towards South, angle is counted positively counter-clockwised).
+    Altitude : str or float
+        Altitude above sea level, in meters.
+    Fluctuations : Boolean
+        Boolean to enable or not shower-to-shower fluctations.
+    AntennaPositions : array (N,3)
+        List of N antenna positions (Northing, Westing, Up) in meters.
 
+    Returns:
+    --------
+    IndividualTraces : array (N, 4, 1999)
+        Traces for each antenna, in the same order as in AntennaPositions, such that IndividualTraces[i] = [t, Ex, Ey, Ez], with time in ns and E in µV/m.
+    """
+    
     ### Shower parameters
     parameters = [
                   'Primary: ' + Primary + '\n',
@@ -49,15 +76,11 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
     
         IndividualTraces = IndividualTraces + [[t, Ex, Ey, Ez]]
         
-        module = np.sqrt(Ex**2 + Ey**2 + Ez**2)
-        
-        Etotal = Etotal + [[module]]
-        Emax = Emax + [max(module)]
-    
-
-
+        #module = np.sqrt(Ex**2 + Ey**2 + Ez**2)
+        #Etotal = Etotal + [[module]]
+        #Emax = Emax + [max(module)]
     
     return IndividualTraces
 
-
+def TriggeredAntennas(
 
