@@ -1,5 +1,6 @@
 import sys
-import argparse
+import os
+import configparser
 import csv
 import sqlite3
 import math
@@ -138,39 +139,132 @@ def init_database(db_path):
             Core_N REAL,
             FOREIGN KEY(EventID) REFERENCES Events(EventID)
         );
+        CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
+        CREATE INDEX IF NOT EXISTS idx_triggered_ant_event ON TriggeredAntennas(EventID);
     """)
     conn.commit()
     return conn
+
+import time
+import select
+
+def resolve_ini_path(config_file_path, path_str):
+    """
+    Resolves a path from the INI file. If relative, it is strictly resolved
+    relative to the directory containing the INI file.
+    """
+    if not path_str or not path_str.strip():
+        return ""
+    path_str = path_str.strip()
+    if os.path.isabs(path_str):
+        return path_str
+    config_dir = os.path.dirname(os.path.abspath(config_file_path))
+    return os.path.abspath(os.path.join(config_dir, path_str))
+
+def pause_for_review(timeout=5.0):
+    """
+    Pauses for `timeout` seconds to let the user review configuration.
+    If a key is pressed during the countdown, execution pauses until another
+    key is pressed, then resumes.
+    """
+    print(f"Proceeding in {int(timeout)} seconds. Press any key to pause and review...")
+    if not sys.stdin.isatty():
+        time.sleep(timeout)
+        return
+
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        rlist, _, _ = select.select([sys.stdin], [], [], timeout)
+        if rlist:
+            _ = sys.stdin.read(1)
+            print("\n[PAUSED] Configuration review paused. Press any key to resume...")
+            _ = sys.stdin.read(1)
+            print("Resuming execution...\n")
+        else:
+            print("Continuing...\n")
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 # ==============================================================================
 # MAIN GENERATOR
 # ==============================================================================
 def main():
-    parser = argparse.ArgumentParser(description="Monte Carlo Core Drop and Antenna Trigger Simulator")
-    parser.add_argument("events_db", type=str, help="Input library of events (SQLite Database)")
-    parser.add_argument("antennas_csv", type=str, help="Input antenna positions (CSV)")
-    parser.add_argument("--out-db", type=str, default="TriggeredEvents.sqlite", help="Output SQLite database")
+    if len(sys.argv) != 2:
+        print(f"Usage: python3 {os.path.basename(sys.argv[0])} <config.ini>")
+        sys.exit(1)
+
+    config_file = os.path.abspath(sys.argv[1])
+    if not os.path.isfile(config_file):
+        print(f"ERROR: Configuration file '{config_file}' not found.")
+        sys.exit(1)
+
+    config = configparser.ConfigParser()
+    config.read(config_file)
+
+    if "EventGenerator" not in config:
+        print(f"ERROR: Section [EventGenerator] not found in '{config_file}'.")
+        sys.exit(1)
+
+    sec = config["EventGenerator"]
+
+    events_db = resolve_ini_path(config_file, sec.get("events_db", fallback="ExampleFluxWithXmax.sqlite"))
+    antennas_csv = resolve_ini_path(config_file, sec.get("antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"))
+    out_db = resolve_ini_path(config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite"))
     
-    parser.add_argument("--center-e", type=float, default=0.0, help="Hexagon center Easting (m)")
-    parser.add_argument("--center-n", type=float, default=0.0, help="Hexagon center Northing (m)")
-    parser.add_argument("--center-u", type=float, default=1250.0, help="Hexagon center Up/Altitude (m)")
-    parser.add_argument("--hex-size", type=float, default=7000.0, help="Hexagon size/radius (m)")
-    parser.add_argument("--cone-angle", type=float, default=1.0, help="Cone selection angle (degrees)")
-    parser.add_argument("--min-trigger", type=int, default=3, help="Minimum antennas required to trigger")
-    parser.add_argument("--max-tries", type=int, default=500, help="Maximum core drops per event")
-    parser.add_argument("--reuse", type=int, default=1, help="Number of times to reuse each input event")
+    center_e = sec.getfloat("center_e", fallback=0.0)
+    center_n = sec.getfloat("center_n", fallback=0.0)
+    center_u = sec.getfloat("center_u", fallback=1250.0)
+    hex_size = sec.getfloat("hex_size", fallback=7000.0)
+    cone_angle = sec.getfloat("cone_angle", fallback=1.0)
+    min_trigger = sec.getint("min_trigger", fallback=3)
+    max_tries = sec.getint("max_tries", fallback=500)
+    reuse = sec.getint("reuse", fallback=1)
     
-    parser.add_argument("--dist-min", type=float, default=0.0, help="Minimum Xmax distance (km) to simulate")
-    parser.add_argument("--dist-max", type=float, default=1000.0, help="Maximum Xmax distance (km) to simulate")
+    dist_min = sec.getfloat("dist_min", fallback=0.0)
+    dist_max = sec.getfloat("dist_max", fallback=1000.0)
     
-    parser.add_argument("--dry-run", action="store_true", help="Plot distributions, do not save to DB")
-    
-    args = parser.parse_args()
+    dry_run = sec.getboolean("dry_run", fallback=False)
+
+    print("################################################################################")
+    print(" Event Generator (Core Drop & Trigger Simulator)")
+    print("################################################################################")
+    print(f"Config File:     {config_file}")
+    print(f"Input DB:        {events_db}")
+    print(f"Antennas CSV:    {antennas_csv}")
+    print(f"Output DB:       {out_db}")
+    print(f"Hexagon Center:  ({center_e}, {center_n}, {center_u}) m")
+    print(f"Hexagon Size:    {hex_size} m")
+    print(f"Cone Angle:      {cone_angle} deg")
+    print(f"Min Trigger:     {min_trigger} antennas")
+    print(f"Max Tries:       {max_tries}")
+    print(f"Reuse Factor:    {reuse}")
+    print(f"Distance Range:  [{dist_min}, {dist_max}] km")
+    print(f"Dry Run:         {dry_run}")
+    print("################################################################################\n")
+
+    if not os.path.isfile(events_db):
+        print(f"ERROR: Input events database file not found: '{events_db}' (resolved relative to config file).")
+        sys.exit(1)
+
+    if not os.path.isfile(antennas_csv):
+        print(f"ERROR: Antenna positions CSV file not found: '{antennas_csv}' (resolved relative to config file).")
+        sys.exit(1)
+
+    pause_for_review(5.0)
 
     # 1. LOAD ANTENNAS
-    print(f"Loading antennas from {args.antennas_csv}...")
+    if not os.path.exists(antennas_csv):
+        print(f"ERROR: Antenna positions CSV '{antennas_csv}' not found.")
+        sys.exit(1)
+
+    print(f"Loading antennas from {antennas_csv}...")
     ant_ids, ant_pos_list = [], []
-    with open(args.antennas_csv, mode='r') as f:
+    with open(antennas_csv, mode='r') as f:
         reader = csv.DictReader(f)
         for row in reader:
             ant_ids.append(row['ID'])
@@ -178,8 +272,8 @@ def main():
     ant_pos = np.array(ant_pos_list)
 
     # 2. INIT DATABASE
-    if not args.dry_run:
-        conn = init_database(args.out_db)
+    if not dry_run:
+        conn = init_database(out_db)
         cursor = conn.cursor()
 
     # Variables for dry-run plotting
@@ -188,13 +282,17 @@ def main():
     out_zen, out_egy, out_wgt = [], [], []
 
     # 3. LOOP EVENTS
-    print(f"Processing events from {args.events_db} (Reuse factor: {args.reuse})...")
-    center_pos = np.array([args.center_e, args.center_n, args.center_u])
+    if not os.path.exists(events_db):
+        print(f"ERROR: Events database '{events_db}' not found.")
+        sys.exit(1)
+
+    print(f"Processing events from {events_db} (Reuse factor: {reuse})...")
+    center_pos = np.array([center_e, center_n, center_u])
     
     success_count = 0
     
     # Read events from the SQLite database
-    conn_in = sqlite3.connect(args.events_db)
+    conn_in = sqlite3.connect(events_db)
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
     cursor_in.execute("SELECT * FROM Events")
@@ -204,7 +302,7 @@ def main():
             continue
             
         xmax_dist_km = float(row['XmaxDistance_km'])
-        if not (args.dist_min <= xmax_dist_km <= args.dist_max):
+        if not (dist_min <= xmax_dist_km <= dist_max):
             continue
 
         # Read parameters directly (Assuming GRAND coords already)
@@ -222,24 +320,24 @@ def main():
         ])
 
         # EVENT REUSE LOOP
-        for reuse_idx in range(args.reuse):
+        for reuse_idx in range(reuse):
             triggered = False
             tested_cores = []
             
             # Dry run stats (Input)
-            if args.dry_run:
+            if dry_run:
                 in_zen.append(zenith)
                 in_egy.append(energy)
                 in_wgt.append(original_weight)
             
-            for try_idx in range(1, args.max_tries + 1):
-                core_pos = rand_in_hex(center_pos, args.hex_size)
+            for try_idx in range(1, max_tries + 1):
+                core_pos = rand_in_hex(center_pos, hex_size)
                 tested_cores.append(core_pos)
                 
                 xmax_pos = core_pos - (xmax_dist_km * 1000.0 * k_vector)
-                trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, args.cone_angle)
+                trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
                 
-                if len(trig_idx) >= args.min_trigger:
+                if len(trig_idx) >= min_trigger:
                     triggered = True
                     break
 
@@ -251,7 +349,7 @@ def main():
                 new_weight = 0.0 # Failed to trigger
 
             # If dry run, save data for plots
-            if args.dry_run:
+            if dry_run:
                 plot_all_cores.extend(tested_cores)
                 if triggered:
                     plot_triggered_cores.append(core_pos)
@@ -260,7 +358,7 @@ def main():
                     out_wgt.append(new_weight)
 
             # Save to Database
-            if not args.dry_run:
+            if not dry_run:
                 unique_event_name = f"{row['EventName']}_r{reuse_idx}"
                 
                 cursor.execute("""
@@ -295,7 +393,7 @@ def main():
     conn_in.close()
 
     # 4. WRAP UP & PLOTTING
-    if args.dry_run:
+    if dry_run:
         print("\nDry Run Complete. Generating plots...")
         plot_all, plot_trig = np.array(plot_all_cores), np.array(plot_triggered_cores)
         
@@ -309,14 +407,14 @@ def main():
             
         plt.xlabel("Easting (m)")
         plt.ylabel("Northing (m)")
-        plt.title(f"Dry Run (Cone: {args.cone_angle}°): {len(plot_trig)} Triggers / {len(plot_all)} Drops")
+        plt.title(f"Dry Run (Cone: {cone_angle}°): {len(plot_trig)} Triggers / {len(plot_all)} Drops")
         plt.legend()
         plt.axis('equal')
         plt.grid(True, linestyle="--", alpha=0.6)
         
         # --- FIGURE 2: Distributions ---
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-        fig.suptitle(f"Distributions (Cone: {args.cone_angle}° | Min Trigger: {args.min_trigger} ants)")
+        fig.suptitle(f"Distributions (Cone: {cone_angle}° | Min Trigger: {min_trigger} ants)")
         
         # Zenith Plot
         ax1.hist(in_zen, bins=20, histtype='step', color='black', linewidth=2, label='Input (Unweighted)')
@@ -340,7 +438,7 @@ def main():
         plt.show()
     else:
         conn.close()
-        print(f"\nSimulation complete. Saved to {args.out_db}")
+        print(f"\nSimulation complete. Saved to {out_db}")
 
 if __name__ == "__main__":
     main()

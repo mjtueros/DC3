@@ -9,11 +9,57 @@ prints the correct command-line syntax.
 """
 
 import sys
+import os
+import time
+import select
+import configparser
 import sqlite3
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
 from scipy.optimize import brentq
+
+def resolve_ini_path(config_file_path, path_str):
+    """
+    Resolves a path from the INI file. If relative, it is strictly resolved
+    relative to the directory containing the INI file.
+    """
+    if not path_str or not path_str.strip():
+        return ""
+    path_str = path_str.strip()
+    if os.path.isabs(path_str):
+        return path_str
+    config_dir = os.path.dirname(os.path.abspath(config_file_path))
+    return os.path.abspath(os.path.join(config_dir, path_str))
+
+def pause_for_review(timeout=5.0):
+    """
+    Pauses for `timeout` seconds to let the user review configuration.
+    If a key is pressed during the countdown, execution pauses until another
+    key is pressed, then resumes.
+    """
+    print(f"Proceeding in {int(timeout)} seconds. Press any key to pause and review...")
+    if not sys.stdin.isatty():
+        time.sleep(timeout)
+        return
+
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        rlist, _, _ = select.select([sys.stdin], [], [], timeout)
+        if rlist:
+            _ = sys.stdin.read(1)
+            print("\n[PAUSED] Configuration review paused. Press any key to resume...")
+            _ = sys.stdin.read(1)
+            print("Resuming execution...\n")
+        else:
+            print("Continuing...\n")
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
 
 # ==============================================================================
@@ -119,7 +165,7 @@ REQUIRED_COLUMNS = (
 )
 
 
-def calculate_event_xmax(row):
+def calculate_event_xmax(row, detector_alt_km=1.4):
     """
     Calculate Xmax for one SQLite event.
 
@@ -137,13 +183,13 @@ def calculate_event_xmax(row):
         energy_eV,
         particle_type,
         zenith_deg,
-        detector_alt_km=1.4,
+        detector_alt_km=detector_alt_km,
     )
 
     return distance, altitude, xmax
 
 
-def process_sqlite(input_file, output_file):
+def process_sqlite(input_file, output_file, detector_alt_km=1.4):
     conn_in = sqlite3.connect(input_file)
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
@@ -202,7 +248,7 @@ def process_sqlite(input_file, output_file):
     for row in rows:
         n_events += 1
         try:
-            distance, alt, xmax = calculate_event_xmax(row)
+            distance, alt, xmax = calculate_event_xmax(row, detector_alt_km=detector_alt_km)
         except Exception as exc:
             event_id = row["EventNumber"]
             print(
@@ -375,25 +421,58 @@ def show_plots():
 # 6. MAIN
 # ==============================================================================
 
-def print_usage():
-    print(
-        "Usage for DB processing:\n"
-        "  python3 SimpleXmaxGetter.py "
-        "InputFlux.sqlite OutputFluxWithXmax.sqlite\n"
-    )
-    print("No arguments given: showing the Xmax diagnostic plots.\n")
+def main():
+    if len(sys.argv) != 2:
+        print(f"Usage: python3 {os.path.basename(sys.argv[0])} <config.ini>")
+        sys.exit(1)
+
+    config_file = os.path.abspath(sys.argv[1])
+    if not os.path.isfile(config_file):
+        print(f"ERROR: Configuration file '{config_file}' not found.")
+        sys.exit(1)
+
+    config = configparser.ConfigParser()
+    config.read(config_file)
+
+    if "XmaxGetter" not in config:
+        print(f"ERROR: Section [XmaxGetter] not found in '{config_file}'.")
+        sys.exit(1)
+
+    sec = config["XmaxGetter"]
+    input_file = resolve_ini_path(config_file, sec.get("InputFile", fallback="ExampleFlux.sqlite"))
+    output_file = resolve_ini_path(config_file, sec.get("OutputFile", fallback="ExampleFluxWithXmax.sqlite"))
+    detector_alt_km = sec.getfloat("detector_alt_km", fallback=1.4)
+    show_plots_flag = sec.getboolean("show_plots", fallback=False)
+
+    print("################################################################################")
+    print(" Xmax Getter")
+    print("################################################################################")
+    print(f"Config File:      {config_file}")
+    print(f"Input DB:         {input_file}")
+    print(f"Output DB:        {output_file}")
+    print(f"Detector Alt:     {detector_alt_km} km")
+    print(f"Show Plots:       {show_plots_flag}")
+    print("################################################################################\n")
+
+    if not os.path.isfile(input_file):
+        print(f"ERROR: Input database file not found: '{input_file}' (resolved relative to config file).")
+        sys.exit(1)
+
+    out_dir = os.path.dirname(output_file)
+    if out_dir and not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+
+    pause_for_review(5.0)
+
+    if show_plots_flag:
+        show_plots()
+
+    try:
+        process_sqlite(input_file, output_file, detector_alt_km=detector_alt_km)
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        print_usage()
-        show_plots()
-    elif len(sys.argv) == 3:
-        try:
-            process_sqlite(sys.argv[1], sys.argv[2])
-        except Exception as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            sys.exit(1)
-    else:
-        print_usage()
-        sys.exit(1)
+    main()

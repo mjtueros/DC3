@@ -74,11 +74,35 @@ def view_events_interactively(db_path):
     print("Finished viewing events.")
 
 if __name__ == "__main__":
+    import sys
+    import os
+    import configparser
 
-    parser = argparse.ArgumentParser(description="Event viewer")
-    parser.add_argument("events_db", type=str, help="Input event library")
-    
-    args = parser.parse_args()
+    if len(sys.argv) != 2:
+        print(f"Usage: python3 {os.path.basename(sys.argv[0])} <config.ini | database.sqlite>")
+        sys.exit(1)
 
-    view_events_interactively(args.events_db)
+    target_path = sys.argv[1]
+    if not os.path.exists(target_path):
+        print(f"ERROR: File '{target_path}' not found.")
+        sys.exit(1)
+
+    if target_path.endswith(".ini"):
+        config = configparser.ConfigParser()
+        config.read(target_path)
+        if "EventGenerator" not in config:
+            print(f"ERROR: Section [EventGenerator] not found in '{target_path}'.")
+            sys.exit(1)
+        raw_db = config["EventGenerator"].get("out_db", "TriggeredEvents.sqlite")
+        if os.path.isabs(raw_db):
+            db_path = raw_db
+        else:
+            db_path = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(target_path)), raw_db))
+        if not os.path.isfile(db_path):
+            print(f"ERROR: Database file not found: '{db_path}' (resolved relative to config file).")
+            sys.exit(1)
+    else:
+        db_path = target_path
+
+    view_events_interactively(db_path)
 
