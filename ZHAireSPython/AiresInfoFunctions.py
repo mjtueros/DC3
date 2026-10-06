@@ -33,7 +33,7 @@ import logging
 #If at some point we need speed, then we could input datafile, and make a wraper for opening the file
 
 #AiresPath="/home/mjtueros/aires/bin"
-AiresPath=os.environ["AIRESBINDIR"]
+AiresPath=os.environ.get("AIRESBINDIR")
 #AiresPath="/home/mjtueros/AiresRepository/Dropbox/AiresBzr/Aires.19-04-04-ZHAireS-development/zhadl/bin"
 
 def GetZenithAngleFromSry(sry_file,outmode="GRAND"):
@@ -1431,6 +1431,9 @@ def GetLongitudinalTable(Path,TableNumber,Slant=True,Precision="Double",tablecol
 
     if(len(idffile)==1 and len(tablefile)==0):
       logging.info("could not find the table, trying to get it from the idf")
+      if AiresPath is None:
+        logging.error("AIRESBINDIR environment variable is not defined. You need to define AIRESBINDIR and point it to where your Aires binaries are installed.")
+        sys.exit(1)
       base=os.path.basename(idffile[0])
       taskname=os.path.splitext(base)[0]
 
@@ -1515,6 +1518,9 @@ def GetLateralTable(Path,TableNumber,Density=True,Precision="Double"):
 
     if(len(idffile)==1 and len(tablefile)==0):
       logging.info("LDF.could not find the table, trying to guess it from the idf")
+      if AiresPath is None:
+        logging.error("AIRESBINDIR environment variable is not defined. You need to define AIRESBINDIR and point it to where your Aires binaries are installed.")
+        sys.exit(1)
       base=os.path.basename(idffile[0])
       taskname=os.path.splitext(base)[0]
 
