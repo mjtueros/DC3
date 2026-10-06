@@ -1,0 +1,389 @@
+
+>>>>
+>>>>
+>>>>        AAAAA    IIII   RRRRRR    EEEEEEE    SSSSS       \
+>>>>       AAAAAAA   IIII   RRRRRRR   EEEEEEE   SSSSSSS       A
+>>>>       AA   AA    II    RR   RR   EE        SS   SS        I
+>>>>       AAAAAAA    II    RRRRRR    EEEE       SSS            R-shower
+>>>>       AAAAAAA    II    RRRRR     EEEE         SSS          Extended
+>>>>       AA   AA    II    RR  RR    EE        SS   SS         Simulations
+>>>>       AA   AA   IIII   RR   RR   EEEEEEE   SSSSSSS         |
+>>>>       AA   AA   IIII   RR   RR   EEEEEEE    SSSSS         / \
+>>>>
+>>>>
+>>>>       Departamento de Fisica, Universidad de La Plata, ARGENTINA.
+>>>>
+>>>>
+>>>> This is AIRES version 19.04.10 (23/Jan/2023)
+>>>> With ZHAireS version 1.0.30b (06/Aug/2021) extension
+>>>> (Compiled by mjtueros@organa, date: 09/Jun/2023) **
+>>>> USER: mjtueros, HOST: cirkuit, DATE: 06/Oct/2026
+>>>>
+
+>>>>
+>>>>       with
+>>>>       
+>>>>       ZZZZZ  H  H    AA   I  RRR   EEEE  SSSS       \ \ \
+>>>>          Z   H  H   A  A  I  R  R  E     S           \ \ \
+>>>>         Z    HHHH   AAAA  I  RRR   EE    SSSS alpha  -------
+>>>>        Z     H  H   A  A  I  R R   E        S v1.0   / / /  T
+>>>>       ZZZZZ  H  H   A  A  I  R  R  EEEE  SSSS r30b  / / /  T T
+>>>>       
+>>>>                                                        inside!
+>>>>
+>>>>       Departamento de Fisica de Partículas, USC, ESPAÑA
+>>>>
+
+
+
+                           Task Name: Xi_Sib_Iron_0.0856_81.0_39.16_7
+
+
+               Current date and time: 06/Oct/2026 15:19:51
+
+          Processing started at date: 06/Oct/2026 15:16:06
+
+            Processing ended at date: 06/Oct/2026 15:19:51
+
+             Total number of showers:          1
+
+                 Number of processes:          1
+
+                      Number of runs:          1
+
+                      Total CPU time: 3 min 39.27 sec
+
+
+
+            Avg. CPU time per shower: 3 min 39.27 sec
+
+
+
+>>>>                        SUMMARY OF INPUT DATA
+>>>>                        ---------------------
+
+>>>>
+>>>>          PARAMETERS AND OPTIONS IN EFFECT.
+>>>>
+>>>> "(D)" indicates that the corresponding default value is being used.
+>>>>
+
+                           Task Name: Xi_Sib_Iron_0.0856_81.0_39.16_7
+
+     RUN CONTROL:
+             Total number of showers:          1
+     (D)             Showers per run:   Infinite
+                    Runs per process:         23
+                    CPU time per run:       2 hr
+
+     FILE NAMES:
+                            Log file: Xi_Sib_Iron_0.0856_81.0_39.16_7.lgf
+                    Binary dump file: Xi_Sib_Iron_0.0856_81.0_39.16_7.idf
+               Compressed data files: NONE
+                 Output summary file: Xi_Sib_Iron_0.0856_81.0_39.16_7.sry    
+
+     BASIC PARAMETERS:
+                                Site: Xiaodushan
+                                      (Lat:  40.99 deg. Long:   93.94 deg.)
+                                Date: 26/Oct/2022
+
+                    Primary particle: Fe^56 (Z=26, N=30)
+                      Primary energy: 85.620 PeV
+                Primary zenith angle:    81.03 deg
+               Primary azimuth angle:    39.16 deg
+              Zero azimuth direction: Local magnetic north
+                     Thinning energy: 1.0000E-05 Relative
+     (D)          Injection altitude: 100.00 km (9.8698754E-04 g/cm2)
+     (D)             Ground altitude: 1.2640 km (904.5084 g/cm2)
+           First obs. level altitude: 100.00 km (9.8698754E-04 g/cm2)
+            Last obs. level altitude: 1.2640 km (904.5084 g/cm2)
+          Obs. levels and depth step:        510     1.777 g/cm2
+                   Geomagnetic field: Intensity: 56.482 uT
+                                      I:   61.60 deg. D:    0.13 deg
+     (D)         Table energy limits: 10.000 MeV to 64.215 PeV
+                 Table radial limits: 100.00 m  to 20.000 km
+
+     ADDITIONAL PARAMETERS:
+     (D)      Individual shower data: Brief
+               Cut energy for gammas: 1.0000 MeV
+                Cut energy for e+ e-: 1.0000 MeV
+     (D)      Cut energy for mu+ mu-: 10.000 MeV
+     (D)       Cut energy for mesons: 60.000 MeV
+     (D)     Cut energy for nucleons: 120.00 MeV
+         Initial primary propagation: On
+     (D)    Record special primaries: On
+     (D)            Resampling ratio: 10.00000
+     (D)      ZHAireS Radio Routines: Off
+     (D)     Calculate Sum of Tracks: Off
+                Time Domain Bin Size: 5.0000E-10 sec
+              Reduced ZHAireS Output: On
+            CoREAS compatible Output: On
+            Max. stat. weight factor: 6.0000000E-02
+                Gamma rough egy. cut: 1.0000 MeV
+                 e+e- rough egy. cut: 1.0000 MeV
+     (D)    Hadronic Mean Free Paths: SIBYLL23d
+     (D)            SIBYLL23d switch: On
+     (D)                FLUKA switch: Off
+
+     MISCELLANEOUS:
+            Seed of random generator: 0.427044916000
+                   Atmospheric model: DunhuangFromChao                          
+
+>>>>
+
+
+
+>>>>                           OUTPUT SUMMARY
+>>>>                           --------------
+
+
+>>>>          STACK DESCRIPTION: Names and average sizes (entries, KB).
+
+     1  Gamma rays                                      9168.00      2149
+     2  Electron-Positron                               9168.00      2149
+     3  Neutral particles                                804.00       188
+     4  Heavy charged particles                         2197.00       515
+
+
+>>>>          PER SHOWER BALANCE OF PARTICLES
+
+
+ All particle numbers are expressed in units of 10^6 particles.
+
+
+                      Item     Mean   RMS Err.   Stddv.    Min.     Max.
+
+ Stack 1
+         Particles stacked:  2998.300     0.00     0.00  2998.30  2998.30
+            Particles lost:     8.365     0.00     0.00     8.36     8.36
+           Low-E particles:  3366.044     0.00     0.00  3366.04  3366.04
+  Pcles. that reached gnd.:     0.340     0.00     0.00     0.34     0.34
+
+ Stack 2
+         Particles stacked:  5075.725     0.00     0.00  5075.73  5075.73
+            Particles lost:     0.048     0.00     0.00     0.05     0.05
+           Low-E particles:  6067.994     0.00     0.00  6067.99  6067.99
+  Pcles. that reached gnd.:     0.079     0.00     0.00     0.08     0.08
+
+ Stack 3
+         Particles stacked:     2.508     0.00     0.00     2.51     2.51
+            Particles lost:     0.014     0.00     0.00     0.01     0.01
+           Low-E particles:     0.817     0.00     0.00     0.82     0.82
+  Pcles. that reached gnd.:     0.000     0.00     0.00     0.00     0.00
+
+ Stack 4
+         Particles stacked:     6.438     0.00     0.00     6.44     6.44
+            Particles lost:     0.004     0.00     0.00     0.00     0.00
+           Low-E particles:     1.070     0.00     0.00     1.07     1.07
+  Pcles. that reached gnd.:     0.097     0.00     0.00     0.10     0.10
+
+ Totals:
+         Particles stacked:  8082.972     0.00     0.00  8082.97  8082.97
+            Particles lost:     8.431     0.00     0.00     8.43     8.43
+           Low-E particles:  9435.924     0.00     0.00  9435.92  9435.92
+  Pcles. that reached gnd.:     0.516     0.00     0.00     0.52     0.52
+
+
+ Other particles not processed in stacks.
+
+
+
+                 Neutrinos:     5.596     0.00     0.00     5.60     5.60
+      Unphysical particles:     0.000     0.00     0.00     0.00     0.00
+
+
+
+>>>>          PER SHOWER BALANCE OF ENERGY
+
+
+ All energies are expressed in units of the average primary
+ energy: 85.620 PeV (8.5620000E+16 eV).
+
+
+                      Item      Mean   RMS Err.   Stddv.     Min.     Max.
+
+ Stack 1
+             Medium losses:  0.0002768  0.00000  0.00000  0.00028  0.00028
+            Particles lost:  0.0007990  0.00000  0.00000  0.00080  0.00080
+           Low-E particles:  0.0221557  0.00000  0.00000  0.02216  0.02216
+  Pcles. that reached gnd.:  0.0001679  0.00000  0.00000  0.00017  0.00017
+
+ Stack 2
+             Medium losses:  0.6309414  0.00000  0.00000  0.63094  0.63094
+            Particles lost:  0.0000624  0.00000  0.00000  0.00006  0.00006
+           Low-E particles:  0.0604625  0.00000  0.00000  0.06046  0.06046
+  Pcles. that reached gnd.:  0.0001982  0.00000  0.00000  0.00020  0.00020
+
+ Stack 3
+             Medium losses:  0.0033588  0.00000  0.00000  0.00336  0.00336
+            Particles lost:  0.0000568  0.00000  0.00000  0.00006  0.00006
+           Low-E particles:  0.0004343  0.00000  0.00000  0.00043  0.00043
+  Pcles. that reached gnd.:  0.0000003  0.00000  0.00000  0.00000  0.00000
+
+ Stack 4
+             Medium losses:  0.0312473  0.00000  0.00000  0.03125  0.03125
+            Particles lost:  0.0000266  0.00000  0.00000  0.00003  0.00003
+           Low-E particles:  0.0007748  0.00000  0.00000  0.00077  0.00077
+  Pcles. that reached gnd.:  0.1327461  0.00000  0.00000  0.13275  0.13275
+
+ Totals:
+
+            Primary energy:  1.0000000  0.00000  0.00000  1.00000  1.00000
+
+             Medium losses:  0.6658243  0.00000  0.00000  0.66582  0.66582
+            Particles lost:  0.0009447  0.00000  0.00000  0.00094  0.00094
+           Low-E particles:  0.0838273  0.00000  0.00000  0.08383  0.08383
+  Pcles. that reached gnd.:  0.1331124  0.00000  0.00000  0.13311  0.13311
+
+
+ Other particles not processed in stacks.
+
+                 Neutrinos:  0.1235421  0.00000  0.00000  0.12354  0.12354
+      Unphysical particles:  0.0000000  0.00000  0.00000  0.00000  0.00000
+
+
+
+>>>>          PARTICLES REACHING GROUND LEVEL
+
+
+     All particle numbers are expressed in units of 10^3 particles.
+
+
+                           Mean   RMS Err.   Stddv.    Min.     Max.
+
+     Gamma rays          340.0572    0.000    0.000  340.057  340.057
+
+     Electrons            61.5651    0.000    0.000   61.565   61.565
+     Positrons            17.8727    0.000    0.000   17.873   17.873
+     Electr & positr      79.4378    0.000    0.000   79.438   79.438
+
+     Muons (+)            43.4092    0.000    0.000   43.409   43.409
+     Muons (-)            53.2573    0.000    0.000   53.257   53.257
+     All muons            96.6665    0.000    0.000   96.666   96.666
+
+     Pions (+)             0.0000    0.000    0.000    0.000    0.000
+     Pions (-)             0.0000    0.000    0.000    0.000    0.000
+     All pions             0.0000    0.000    0.000    0.000    0.000
+
+     Kaons (+)             0.0000    0.000    0.000    0.000    0.000
+     Kaons (-)             0.0000    0.000    0.000    0.000    0.000
+     All kaons             0.0000    0.000    0.000    0.000    0.000
+
+     Neutrons              0.1718    0.000    0.000    0.172    0.172
+     Protons               0.0000    0.000    0.000    0.000    0.000
+     Anti-protons          0.0000    0.000    0.000    0.000    0.000
+
+     Nuclei                0.0000    0.000    0.000    0.000    0.000
+
+     All charged         176.1042    0.000    0.000  176.104  176.104
+     All neutral         340.2290    0.000    0.000  340.229  340.229
+     All particles       516.3333    0.000    0.000  516.333  516.333
+
+
+
+>>>>          UNWEIGHTED GROUND PARTICLE ENTRIES
+
+
+     All particle entry numbers are expressed in units of 10^3 entries.
+
+
+                           Mean   RMS Err.   Stddv.    Min.     Max.
+
+     Gamma rays          4.451000  0.00000  0.00000  4.45100  4.45100
+
+     Electrons           2.066000  0.00000  0.00000  2.06600  2.06600
+     Positrons           0.313000  0.00000  0.00000  0.31300  0.31300
+     Electr & positr     2.379000  0.00000  0.00000  2.37900  2.37900
+
+     Muons (+)           5.198000  0.00000  0.00000  5.19800  5.19800
+     Muons (-)           5.746000  0.00000  0.00000  5.74600  5.74600
+     All muons          10.944000  0.00000  0.00000 10.94400 10.94400
+
+     Pions (+)           0.000000  0.00000  0.00000  0.00000  0.00000
+     Pions (-)           0.000000  0.00000  0.00000  0.00000  0.00000
+     All pions           0.000000  0.00000  0.00000  0.00000  0.00000
+
+     Kaons (+)           0.000000  0.00000  0.00000  0.00000  0.00000
+     Kaons (-)           0.000000  0.00000  0.00000  0.00000  0.00000
+     All kaons           0.000000  0.00000  0.00000  0.00000  0.00000
+
+     Neutrons            0.003000  0.00000  0.00000  0.00300  0.00300
+     Protons             0.000000  0.00000  0.00000  0.00000  0.00000
+     Anti-protons        0.000000  0.00000  0.00000  0.00000  0.00000
+
+     Nuclei              0.000000  0.00000  0.00000  0.00000  0.00000
+
+     All charged        13.323000  0.00000  0.00000 13.32300 13.32300
+     All neutral         4.454000  0.00000  0.00000  4.45400  4.45400
+     All particles      17.777000  0.00000  0.00000 17.77700 17.77700
+
+
+
+>>>>          ENERGY OF GROUND LEVEL PARTICLES
+
+
+     All energies are expressed in TeV.
+
+
+                           Mean   RMS Err.   Stddv.    Min.     Max.
+
+     Gamma rays           14.3723     0.00     0.00    14.37    14.37
+
+     Electrons             7.8187     0.00     0.00     7.82     7.82
+     Positrons             9.1493     0.00     0.00     9.15     9.15
+     Electr & positr      16.9680     0.00     0.00    16.97    16.97
+
+     Muons (+)          5785.1851     0.00     0.00  5785.19  5785.19
+     Muons (-)          5580.5322     0.00     0.00  5580.53  5580.53
+     All muons         11365.7172     0.00     0.00 11365.72 11365.72
+
+     Pions (+)             0.0000     0.00     0.00     0.00     0.00
+     Pions (-)             0.0000     0.00     0.00     0.00     0.00
+     All pions             0.0000     0.00     0.00     0.00     0.00
+
+     Kaons (+)             0.0000     0.00     0.00     0.00     0.00
+     Kaons (-)             0.0000     0.00     0.00     0.00     0.00
+     All kaons             0.0000     0.00     0.00     0.00     0.00
+
+     Neutrons              0.0299     0.00     0.00     0.03     0.03
+     Protons               0.0000     0.00     0.00     0.00     0.00
+     Anti-protons          0.0000     0.00     0.00     0.00     0.00
+
+     Nuclei                0.0000     0.00     0.00     0.00     0.00
+
+     All charged       11382.6853     0.00     0.00 11382.69 11382.69
+     All neutral          14.4023     0.00     0.00    14.40    14.40
+     All particles     11397.0875     0.00     0.00 11397.09 11397.09
+
+
+
+>>>>          OTHER SHOWER PARAMETERS
+
+
+                               Mean   RMS Err.   Stddv.    Min.     Max.
+
+ Vt. first interact. depth:     0.509     0.00     0.00     0.51     0.51
+ Sl. first interact. depth:     2.469     0.00     0.00     2.47     2.47
+         (Depths in g/cm2)
+
+
+     Shower maximum estimation:
+
+ Vt. depth of max. (g/cm2):   100.873     0.00     0.00   100.87   100.87
+ Sl. depth of max. (g/cm2):   570.368     0.00     0.00   570.37   570.37
+ Charged pcles. at maximum:  71.01176   0.0000   0.0000  71.0118  71.0118
+              (Times 10^6)
+
+
+  (all in Km)   Altitude  Distance     x          y          z
+  Pos. Max.:    17.42738   98.87768   75.73068   61.67645   16.68074
+
+     The fits were done with the Levenberg-Marquardt
+     nonlinear least-squares fitting algorithm, modelling
+     shower profiles with a 4-parameter Gaisser-Hillas function.
+
+     Number of showers with converged fits: 1
+
+
+>>>>          END OF SUMMARY.
+

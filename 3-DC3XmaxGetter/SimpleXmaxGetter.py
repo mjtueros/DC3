@@ -189,7 +189,7 @@ def calculate_event_xmax(row, detector_alt_km=1.4):
     return distance, altitude, xmax
 
 
-def process_sqlite(input_file, output_file, detector_alt_km=1.4):
+def process_sqlite(input_file, output_file, librarytype, librarydir=".", detector_alt_km=1.4):
     conn_in = sqlite3.connect(input_file)
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
@@ -247,17 +247,39 @@ def process_sqlite(input_file, output_file, detector_alt_km=1.4):
 
     for row in rows:
         n_events += 1
-        try:
-            distance, alt, xmax = calculate_event_xmax(row, detector_alt_km=detector_alt_km)
-        except Exception as exc:
-            event_id = row["EventNumber"]
-            print(
-                f"WARNING: could not calculate Xmax for "
-                f"event {event_id}: {exc}"
-            )
-            distance, alt, xmax = None, None, None
-            n_errors += 1
+        if(librarytype=="Dummy"):
+          
+            try:
+                distance, alt, xmax = calculate_event_xmax(row, detector_alt_km=detector_alt_km)
+            except Exception as exc:
+                event_id = row["EventNumber"]
+                print(
+                    f"WARNING: could not calculate Xmax for "
+                    f"event {event_id}: {exc}"
+                )
+                distance, alt, xmax = None, None, None
+                n_errors += 1
 
+        elif(librarytype=="ZHAireS"):
+
+            try:
+                EventName=row["EventName"]
+                sryfile=librarydir+"/"+EventName+"/"+EventName+".sry"
+                print("tryng",sryfile)
+                import AiresInfoFunctions as AiresInfo
+                alt,distance,Xmaxx,Xmaxy,Xmaxz =AiresInfo.GetKmXmaxFromSry(sryfile)
+                xmax=AiresInfo.GetSlantXmaxFromSry(sryfile) 
+                print(alt,distance,xmax)
+                
+            except Exception as exc:
+                event_id = row["EventNumber"]
+                print(
+                    f"WARNING: could not calculate Xmax for "
+                    f"event {event_id}: {exc}"
+                )
+                distance, alt, xmax = None, None, None
+                n_errors += 1
+                      
         events_data.append((
             row["EventNumber"], row["EventName"], row["RandomSeed"], row["EventWeight"],
             row["PrimaryType"], row["Energy_EeV"], row["Zenith_Deg"], row["Azimuth_Deg"], 
@@ -443,6 +465,8 @@ def main():
     output_file = resolve_ini_path(config_file, sec.get("OutputFile", fallback="ExampleFluxWithXmax.sqlite"))
     detector_alt_km = sec.getfloat("detector_alt_km", fallback=1.4)
     show_plots_flag = sec.getboolean("show_plots", fallback=False)
+    librarytype = sec.get("LibraryType", fallback="Dummy")
+    librarydir = sec.get("LibraryDir")
 
     print("################################################################################")
     print(" Xmax Getter")
@@ -452,6 +476,9 @@ def main():
     print(f"Output DB:        {output_file}")
     print(f"Detector Alt:     {detector_alt_km} km")
     print(f"Show Plots:       {show_plots_flag}")
+    print(f"Xmax Source:      {librarytype}")
+    if librarytype == "ZHAireS":
+      print(f"Library Dir:      {librarydir}")     
     print("################################################################################\n")
 
     if not os.path.isfile(input_file):
@@ -462,13 +489,47 @@ def main():
     if out_dir and not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
+    if librarytype == "ZHAireS":
+        librarydir=resolve_ini_path(config_file,librarydir)
+    
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.abspath(os.path.join(script_dir, ".."))
+
+        candidate_dirs = [
+            os.environ.get("ZHAIRESPYTHON", ""),
+            os.path.join(repo_root, "ZHAireSPython"),
+            os.path.join(os.getcwd(), "ZHAireSPython"),
+            os.getcwd(),
+            script_dir,
+        ]
+
+        zhaires_path = None
+        for cdir in candidate_dirs:
+            if cdir and os.path.isfile(os.path.join(cdir, "AiresInfoFunctions.py")) and os.path.isfile(os.path.join(cdir, "AiresInpFunctions.py")):
+                zhaires_path = cdir
+                break
+
+        if zhaires_path is None:
+            print("Error: Could not locate AiresInfoFunctions.py and AiresInpFunctions.py.")
+            print("Please set the ZHAIRESPYTHON environment variable to the directory containing them.")
+            sys.exit(1)
+
+        sys.path.append(os.path.abspath(zhaires_path))
+
+        try:
+            import AiresInfoFunctions as AiresInfo
+            import AiresInpFunctions as AiresInp
+        except ImportError as e:
+            print(f"Error: Could not import AiresInfoFunctions or AiresInpFunctions from '{zhaires_path}': {e}")
+            sys.exit(1)
+
     pause_for_review(5.0)
 
     if show_plots_flag:
         show_plots()
 
     try:
-        process_sqlite(input_file, output_file, detector_alt_km=detector_alt_km)
+        process_sqlite(input_file, output_file, librarytype ,librarydir, detector_alt_km=detector_alt_km)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)
