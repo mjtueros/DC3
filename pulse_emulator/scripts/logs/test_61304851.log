@@ -1,0 +1,29 @@
+/sps/grand/cprevotat/grand/DC3/pulse_emulator/scripts/./generation_example.py:324: UserWarning: FigureCanvasAgg is non-interactive, and thus cannot be shown
+  plt.show()
+modified sys.path
+imported load_input_params_from_dict
+imported make_input_array
+imported pred_trace_kxB, predict_voltage
+imported MLP_metamodel, MLPClassifierGated, infer_head_arch, remap_legacy_head_keys
+Loading ROOT simulation data...
+Loading ROOT simulation data... done.
+Found 2000 events in /sps/grand/DC2.1rc4/GP300ZHAireS-NJ/sim_Xiaodushan_20221025_220000_RUN0_CD_GP300ZHAireS-NJ_0004.
+hello
+Model built from config; not in config (taken from state dict / defaults): ['var_head_activation', 'var_head_dropout', 'var_head_hidden', 'var_head_layer_norm']
+{'latitude': 40.96, 'altitude': 1264, 'duration': 2.048e-06, 'input_sampling_freq': 2000000000.0, 'out_sampling_freq': 500000000.0, 'source_path': '/pbs/home/a/aferrier/WorkingDir/DU_response_computation', 's_parameters_path': './files/electronics2', 'transfer_function_filename': None, 'balun1_filename': 'balun_in_nut.s2p', 'matchnet_sn_filename': 'MatchingNetworkX.s2p', 'matchnet_ew_filename': 'MatchingNetworkY.s2p', 'matchnet_z_filename': 'MatchingNetworkZ.s2p', 'LNA_sn_filename': 'LNA-X.s2p', 'LNA_ew_filename': 'LNA-Y.s2p', 'LNA_z_filename': 'LNA-Z.s2p', 'cable_filename': 'cable+Connector.s2p', 'vga_filename': 'feb+amfitler+biast.s2p', 'balun2_filename': 'balun_before_ad.s2p', 'zload_map_filename': 'S_balun_AD.s1p', 'zant_map_filename': 'Z_ant_3.2m.csv', 'path_to_GP300_EW': './files/l_eff_maps_2/Light_GP300Antenna_EWarm_leff.npz', 'path_to_GP300_SN': './files/l_eff_maps_2/Light_GP300Antenna_SNarm_leff.npz', 'path_to_GP300_Z': './files/l_eff_maps_2/Light_GP300Antenna_Zarm_leff.npz'}
+
+
+
+{'model': {'num_epochs': 300, 'name': 'last_train_betercov', 'hidden_size': 450, 'n_layers': 3, 'activation': 'silu', 'dropout': 0, 'skip_connection': 0, 'covar_param': 'exp'}, 'training': {'l1_reg': 0.0, 'max_grad_norm': 1.0, 'eval_every': 2, 'save_every': 4, 'early_stopping_patience': 90, 'seed': 43, 'loss': 'hetero_nll_cov', 'scheduler': {'type': 'cosineWR', 'T_0': 30, 'T_mult': 2}, 'lr': 0.001, 'weight_decay': 1e-05}, 'data': {'path': '/sep', 'batch_size': 512, 'inputs': ['zenith', 'cos_azimuth', 'sin_azimuth', 'omega', 'cos_eta', 'sin_eta', 'l', 'energy_em', 'xmax_pos_z'], 'fold': 'mean', 'outputs': ['a', 'b', 'c', 'phase_q', 'phase_p']}, 'covariance_head_refit': {'source': 'last_train', 'source_checkpoint': 'model_last.pth', 'trunk_and_mean': 'frozen', 'head_initialisation': 'identity', 'lr': 0.01, 'weight_decay': 0.0, 'epochs_run': 162, 'best_val_nll': -6.989740914143191, 'created': '2026-08-21T00:03:11'}}
+(3, 513)
+****************************************************************
+*                      SLURM Batch System                      *
+*           IN2P3 Computing Centre, Villeurbanne FR            *
+****************************************************************
+Date: Mon Oct 12 05:13:01 PM CEST 2026
+Job informations can be found using these commands:
+Accounting:
+sacct -j 61304851
+Efficiency:
+seff 61304851
+****************************************************************
