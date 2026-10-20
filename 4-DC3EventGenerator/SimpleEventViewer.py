@@ -9,8 +9,12 @@ def view_events_interactively(db_path):
 
     # 2. Query only events that successfully triggered (Weight > 0)
     # We also grab the final Core_E and Core_N to highlight them
-    cursor.execute("""
-        SELECT EventID, OriginalEventName, PrimaryType, Energy_EeV, Zenith, Tries, Core_E, Core_N 
+    cursor.execute("PRAGMA table_info(Events)")
+    columns = [col[1] for col in cursor.fetchall()]
+    energy_col = "Energy_GeV"
+
+    cursor.execute(f"""
+        SELECT EventID, OriginalEventName, PrimaryType, {energy_col}, Zenith, Tries, Core_E, Core_N 
         FROM Events 
         WHERE Weight > 0
     """)
@@ -25,7 +29,9 @@ def view_events_interactively(db_path):
 
     # 4. Cycle through the events
     for i, event_row in enumerate(triggered_events):
-        ev_id, ev_name, primary, energy, zenith, tries, final_core_e, final_core_n = event_row
+        ev_id, ev_name, primary, energy_val, zenith, tries, final_core_e, final_core_n = event_row
+        energy_GeV = float(energy_val)  
+        energy_EeV = energy_GeV * 1.0e-9
         
         # Fetch all tested cores for this specific event
         cursor.execute("SELECT Core_E, Core_N FROM TestedCores WHERE EventID = ?", (ev_id,))
@@ -46,7 +52,7 @@ def view_events_interactively(db_path):
         
         # Format the plot
         ax.set_title(f"Event {i+1}/{len(triggered_events)}: {ev_name}\n"
-                     f"({primary}, {energy:.2f} EeV, Zenith: {zenith:.1f}°) | Drops to trigger: {tries}")
+                     f"({primary}, {energy_EeV:.2f} EeV, Zenith: {zenith:.1f}°) | Drops to trigger: {tries}")
         ax.set_xlabel("Easting (m)")
         ax.set_ylabel("Northing (m)")
         ax.axis('equal') # Keeps the physical geometry square

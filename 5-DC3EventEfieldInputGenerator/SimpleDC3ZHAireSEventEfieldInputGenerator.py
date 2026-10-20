@@ -43,9 +43,10 @@ except ImportError as e:
 # ==============================================================================
 # VALIDATION HELPER
 # ==============================================================================
-def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy, db_zenith, db_azimuth):
+def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy_GeV, db_zenith, db_azimuth):
     """
     Looks for the .sry file of the original event and validates the parameters.
+    db_energy_GeV is expected in GeV.
     """
     search_path = os.path.join(sry_dir, original_event_name, "*.sry")
     sry_files = glob.glob(search_path)
@@ -64,6 +65,9 @@ def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy, db
     # Read SRY using the GRAND outmode (so Zenith/Azimuth match our DB conventions)
     sry_zen, sry_azim, sry_energy, sry_primary, _, _, _ = AiresInfo.ReadAiresSry(sry_file, outmode="GRAND")
     
+    # In GRAND mode, AiresInfo.ReadAiresSry returns energy in EeV. Convert to GeV:
+    sry_energy_GeV = sry_energy * 1.0e9
+
     # Check Primary
     if str(sry_primary).strip().lower() != str(db_primary).strip().lower():
         if str(db_primary) != "2212" and str(db_primary) != "Proton":
@@ -71,8 +75,8 @@ def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy, db
             return False
 
     # Check Floats with relative tolerance of 1%
-    if not math.isclose(sry_energy, db_energy, rel_tol=1e-2):
-        print(f"  [Mismatch] Energy: DB={db_energy:.4e} EeV, SRY={sry_energy:.4e} EeV")
+    if not math.isclose(sry_energy_GeV, db_energy_GeV, rel_tol=1e-2):
+        print(f"  [Mismatch] Energy: DB={db_energy_GeV:.4e} GeV, SRY={sry_energy_GeV:.4e} GeV")
         return False
         
     if not math.isclose(sry_zen, db_zenith, rel_tol=1e-2):
@@ -209,8 +213,9 @@ def main():
     cursor = conn.cursor()
 
     # Query all events that triggered
-    cursor.execute("""
-        SELECT EventID, OriginalEventName, PrimaryType, Energy_EeV, Zenith, Azimuth, 
+
+    cursor.execute(f"""
+        SELECT EventID, OriginalEventName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
                Core_E, Core_N, Core_U, Xmax_E, Xmax_N, Xmax_U, RandomSeed, Weight
         FROM Events
         WHERE Weight > 0
@@ -223,9 +228,10 @@ def main():
     n_failed = 0
 
     for row in events:
-        (event_id, orig_event_name, primary, energy, zenith, azimuth, 
+        (event_id, orig_event_name, primary, energy_val, zenith, azimuth, 
          core_e, core_n, core_u, xmax_e, xmax_n, xmax_u, random_seed, weight) = row
         
+        energy_GeV = float(energy_val)
         task_name = f"{orig_event_name}_{event_id}"
         out_inp_path = os.path.join(out_dir, f"{task_name}.inp")
         
@@ -233,7 +239,7 @@ def main():
 
         # 3. OPTIONAL VALIDATION
         if sry_dir:
-            is_valid = validate_against_sry(sry_dir, orig_event_name, primary, energy, zenith, azimuth)
+            is_valid = validate_against_sry(sry_dir, orig_event_name, primary, energy_GeV, zenith, azimuth)
             if not is_valid:
                 print(f"  [Failed] Skipping {task_name} due to .sry metadata mismatch.")
                 n_failed += 1
@@ -256,7 +262,9 @@ def main():
             f.write("################################################################################\n")
 
         # 6. WRITE AIRES HEADER
-        AiresInp.CreateAiresInputHeader(task_name, primary, zenith, azimuth, energy, 
+        # CreateAiresInputHeader is external (ZHAireSPython) and expects energy in EeV
+        energy_EeV = energy_GeV * 1.0e-9
+        AiresInp.CreateAiresInputHeader(task_name, primary, zenith, azimuth, energy_EeV, 
                                         RandomSeed=random_seed, OutputFile=out_inp_path)
 
         # 7. FETCH TRIGGERED ANTENNAS

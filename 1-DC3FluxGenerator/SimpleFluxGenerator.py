@@ -104,8 +104,8 @@ maxtheta = sec.getfloat("maxtheta", fallback=88.0)
 minphi = sec.getfloat("minphi", fallback=0.0)
 maxphi = sec.getfloat("maxphi", fallback=360.0)
 
-Emin = sec.getfloat("Emin", fallback=np.power(10.0, -1.5))
-Emax = sec.getfloat("Emax", fallback=np.power(10.0, 0.6))
+Emin = sec.getfloat("Emin", fallback=np.power(10.0, 7.5))
+Emax = sec.getfloat("Emax", fallback=np.power(10.0, 9.6))
 
 show_plots = sec.getboolean("show_plots", fallback=False)
 
@@ -120,7 +120,7 @@ print(f"Models:         {ModelBins}")
 print(f"Primaries:      {PrimaryBins}")
 print(f"Zenith:         [{mintheta}, {maxtheta}] deg")
 print(f"Azimuth:        [{minphi}, {maxphi}] deg")
-print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] EeV")
+print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] GeV")
 print(f"Show Plots:     {show_plots}")
 print("################################################################################\n")
 
@@ -183,19 +183,23 @@ if show_plots:
 LogEmin = np.log10(Emin)
 LogEmax = np.log10(Emax)
 
-print("min Energy (EeV):" + str(Emin) + " -> log10 (Emin) " + str(LogEmin))
-print("max Energy (EeV):" + str(Emax) + " -> log10 (Emax) " + str(LogEmax))
+print("min Energy (GeV):" + str(Emin) + " -> log10 (Emin) " + str(LogEmin))
+print("max Energy (GeV):" + str(Emax) + " -> log10 (Emax) " + str(LogEmax))
 
 RandomLogEnergies = np.random.uniform(low=LogEmin, high=LogEmax, size=Nsims)
 RandomEnergies = np.power(10, RandomLogEnergies)
 
 if show_plots:
-    plt.hist(RandomLogEnergies, bins=21)
+    # EeV allowed for plotting purposes
+    RandomEnergies_EeV = RandomEnergies * 1.0e-9
+    RandomLogEnergies_EeV = np.log10(RandomEnergies_EeV)
+
+    plt.hist(RandomLogEnergies_EeV, bins=21)
     plt.xlabel('Log10(Energy [EeV])')
     plt.ylabel('Number of Sims')
     plt.show()
 
-    plt.hist(RandomEnergies, bins=21)
+    plt.hist(RandomEnergies_EeV, bins=21)
     plt.xlabel('Energy [EeV]')
     plt.ylabel('Number of Sims')
     plt.show()
@@ -230,7 +234,7 @@ cursor.execute("""
         RandomSeed TEXT,
         EventWeight REAL,
         PrimaryType TEXT,
-        Energy_EeV REAL,
+        Energy_GeV REAL,
         Zenith_Deg REAL,
         Azimuth_Deg REAL,
         Model TEXT
@@ -257,9 +261,9 @@ for i in range(0, Nsims):
     
     EventNumber = i
 
-    EventName = (LibraryPrefix + "_" + str(Model) + "_" + str(Primary) + "_" + 
-                 str(Energystring) + "_" + str(Zenithstring) + "_" + 
-                 str(Azimuthstring) + "_" + str(EventNumber))
+    EventName = (LibraryPrefix + "_" + Model + "_" + Primary + "_" + 
+                 Energystring + "_" + Zenithstring + "_" + 
+                 Azimuthstring + "_" + str(EventNumber))
 
     events_data.append((
         EventNumber, EventName, RandomSeed_str, EventWeight, 
@@ -269,7 +273,7 @@ for i in range(0, Nsims):
 cursor.executemany("""
     INSERT INTO Events (
         EventNumber, EventName, RandomSeed, EventWeight, 
-        PrimaryType, Energy_EeV, Zenith_Deg, Azimuth_Deg, Model
+        PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 """, events_data)
 

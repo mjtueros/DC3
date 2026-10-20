@@ -136,13 +136,15 @@ def process_events(db_path, skeleton_path, output_dir, ground_alt_m):
     for row in events:
         event_name = row["EventName"]
         primary = row["PrimaryType"]
-        energy_eev = float(row["Energy_EeV"])
+        energy_gev = float(row["Energy_GeV"])
         zenith = float(row["Zenith_Deg"])
         azimuth = float(row["Azimuth_Deg"])
         seed = row["RandomSeed"]
         
         out_filename = os.path.join(output_dir, f"{event_name}.inp")
         
+        # CreateAiresInputHeader is external (ZHAireSPython) and expects Energy in EeV
+        energy_eev = energy_gev * 1.0e-9
         AiresInp.CreateAiresInputHeader(
             event_name,
             primary,

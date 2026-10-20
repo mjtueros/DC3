@@ -111,7 +111,7 @@ def init_database(db_path):
             EventID INTEGER PRIMARY KEY AUTOINCREMENT,
             OriginalEventName TEXT,
             PrimaryType TEXT,
-            Energy_EeV REAL,
+            Energy_GeV REAL,
             Zenith REAL,
             Azimuth REAL,
             Core_E REAL,
@@ -308,7 +308,7 @@ def main():
         # Read parameters directly (Assuming GRAND coords already)
         zenith = float(row['Zenith_Deg'])
         azimuth = float(row['Azimuth_Deg'])
-        energy = float(row['Energy_EeV'])
+        energy_GeV = float(row['Energy_GeV']) 
         original_weight = float(row['EventWeight'])
         
         theta_rad = np.radians(zenith)
@@ -327,7 +327,7 @@ def main():
             # Dry run stats (Input)
             if dry_run:
                 in_zen.append(zenith)
-                in_egy.append(energy)
+                in_egy.append(energy_GeV)
                 in_wgt.append(original_weight)
             
             for try_idx in range(1, max_tries + 1):
@@ -354,7 +354,7 @@ def main():
                 if triggered:
                     plot_triggered_cores.append(core_pos)
                     out_zen.append(zenith)
-                    out_egy.append(energy)
+                    out_egy.append(energy_GeV)
                     out_wgt.append(new_weight)
 
             # Save to Database
@@ -362,11 +362,11 @@ def main():
                 unique_event_name = f"{row['EventName']}_r{reuse_idx}"
                 
                 cursor.execute("""
-                    INSERT INTO Events (OriginalEventName, PrimaryType, Energy_EeV, Zenith, Azimuth, 
+                    INSERT INTO Events (OriginalEventName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
                                         Core_E, Core_N, Core_U, Xmax_E, Xmax_N, Xmax_U, Weight, RandomSeed, Tries)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    unique_event_name, row['PrimaryType'], energy, zenith, azimuth,
+                    unique_event_name, row['PrimaryType'], energy_GeV, zenith, azimuth,
                     core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
                     new_weight, row['RandomSeed'], try_idx
                 ))
@@ -425,11 +425,11 @@ def main():
         ax1.legend()
         
         # Energy Plot
-        log_in_egy = np.log10(in_egy)
-        log_out_egy = np.log10(out_egy) if len(out_egy) > 0 else []
-        ax2.hist(log_in_egy, bins=15, histtype='step', color='black', linewidth=2, label='Input (Unweighted)')
-        ax2.hist(log_out_egy, bins=15, histtype='step', color='blue', linewidth=2, label='Output (Unweighted)')
-        ax2.hist(log_out_egy, bins=15, weights=out_wgt, color='blue', alpha=0.3, label='Output (Weighted)')
+        log_in_egy_eev = np.log10(np.array(in_egy) * 1.0e-9)
+        log_out_egy_eev = np.log10(np.array(out_egy) * 1.0e-9) if len(out_egy) > 0 else []
+        ax2.hist(log_in_egy_eev, bins=15, histtype='step', color='black', linewidth=2, label='Input (Unweighted)')
+        ax2.hist(log_out_egy_eev, bins=15, histtype='step', color='blue', linewidth=2, label='Output (Unweighted)')
+        ax2.hist(log_out_egy_eev, bins=15, weights=out_wgt, color='blue', alpha=0.3, label='Output (Weighted)')
         ax2.set_xlabel("Log10(Energy [EeV])")
         ax2.set_ylabel("Counts")
         ax2.legend()
