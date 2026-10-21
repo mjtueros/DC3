@@ -483,7 +483,8 @@ def main():
     print(f"Config File:      {config_file}")
     print(f"Input DB:         {input_file}")
     print(f"Output DB:        {output_file}")
-    print(f"Detector Alt:     {detector_alt_km} km")
+    if librarytype == "Dummy":
+      print(f"Detector Alt:     {detector_alt_km} km")
     print(f"Show Plots:       {show_plots_flag}")
     print(f"Xmax Source:      {librarytype}")
     if librarytype == "ZHAireS":
