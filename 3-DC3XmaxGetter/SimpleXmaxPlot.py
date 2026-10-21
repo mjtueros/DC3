@@ -34,10 +34,10 @@ def plot_xmax_vs_energy(db_path, num_bins=10):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        # We only want events that successfully got an Xmax assigned
+        # We only want showers that successfully got an Xmax assigned
         cursor.execute("""
             SELECT PrimaryType, Energy_GeV, Xmax_g_cm2 
-            FROM Events 
+            FROM Showers 
             WHERE Xmax_g_cm2 IS NOT NULL
         """)
         rows = cursor.fetchall()
@@ -47,7 +47,7 @@ def plot_xmax_vs_energy(db_path, num_bins=10):
         return
 
     if not rows:
-        print("No valid events with Xmax data found in the database.")
+        print("No valid showers with Xmax data found in the database.")
         return
 
     # 2. Extract and organize data
@@ -72,7 +72,7 @@ def plot_xmax_vs_energy(db_path, num_bins=10):
     
     # Handle the edge case where all simulated energies are identical
     if min_logE == max_logE:
-        print("All events have the exact same energy. Widening range for plotting.")
+        print("All showers have the exact same energy. Widening range for plotting.")
         min_logE -= 0.5
         max_logE += 0.5
         

@@ -118,7 +118,8 @@ def init_database(db_path):
     c.executescript("""
         CREATE TABLE IF NOT EXISTS Events (
             EventID INTEGER PRIMARY KEY AUTOINCREMENT,
-            OriginalEventName TEXT,
+            EventName TEXT,
+            ShowerName TEXT,
             PrimaryType TEXT,
             Energy_GeV REAL,
             Zenith REAL,
@@ -221,7 +222,7 @@ def main():
 
     sec = config["EventGenerator"]
 
-    events_db = resolve_ini_path(config_file, sec.get("events_db", fallback="ExampleFluxWithXmax.sqlite"))
+    showers_db = resolve_ini_path(config_file, sec.get("showers_db", fallback="ExampleFluxWithXmax.sqlite"))
     antennas_csv = resolve_ini_path(config_file, sec.get("antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"))
     out_db = resolve_ini_path(config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite"))
     
@@ -243,7 +244,7 @@ def main():
     print(" Event Generator (Core Drop & Trigger Simulator)")
     print("################################################################################")
     print(f"Config File:     {config_file}")
-    print(f"Input DB:        {events_db}")
+    print(f"Input DB:        {showers_db}")
     print(f"Antennas CSV:    {antennas_csv}")
     print(f"Output DB:       {out_db}")
     print(f"Hexagon Center:  ({center_n}, {center_w}, {center_u}) m")
@@ -256,8 +257,8 @@ def main():
     print(f"Dry Run:         {dry_run}")
     print("################################################################################\n")
 
-    if not os.path.isfile(events_db):
-        print(f"ERROR: Input events database file not found: '{events_db}' (resolved relative to config file).")
+    if not os.path.isfile(showers_db):
+        print(f"ERROR: Input showers database file not found: '{showers_db}' (resolved relative to config file).")
         sys.exit(1)
 
     if not os.path.isfile(antennas_csv):
@@ -291,20 +292,20 @@ def main():
     out_zen, out_egy, out_wgt = [], [], []
 
     # 3. LOOP EVENTS
-    if not os.path.exists(events_db):
-        print(f"ERROR: Events database '{events_db}' not found.")
+    if not os.path.exists(showers_db):
+        print(f"ERROR: Showers database '{showers_db}' not found.")
         sys.exit(1)
 
-    print(f"Processing events from {events_db} (Reuse factor: {reuse})...")
+    print(f"Processing showers from {showers_db} (Reuse factor: {reuse})...")
     center_pos = np.array([center_n, center_w, center_u])
     
     success_count = 0
     
-    # Read events from the SQLite database
-    conn_in = sqlite3.connect(events_db)
+    # Read showers from the SQLite database
+    conn_in = sqlite3.connect(showers_db)
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
-    cursor_in.execute("SELECT * FROM Events")
+    cursor_in.execute("SELECT * FROM Showers")
     
     for i, row in enumerate(cursor_in.fetchall()):
         if row['XmaxDistance_km'] is None:
@@ -318,7 +319,7 @@ def main():
         zenith = float(row['Zenith_Deg'])
         azimuth = float(row['Azimuth_Deg'])
         energy_GeV = float(row['Energy_GeV']) 
-        original_weight = float(row['EventWeight'])
+        original_weight = float(row['ShowerWeight'])
         
         theta_rad = np.radians(zenith)
         phi_rad = np.radians(azimuth)
@@ -368,14 +369,14 @@ def main():
 
             # Save to Database
             if not dry_run:
-                unique_event_name = f"{row['EventName']}_r{reuse_idx}"
+                unique_event_name = f"{row['ShowerName']}_r{reuse_idx}"
                 
                 cursor.execute("""
-                    INSERT INTO Events (OriginalEventName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
+                    INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
                                         Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    unique_event_name, row['PrimaryType'], energy_GeV, zenith, azimuth,
+                    unique_event_name, row['ShowerName'], row['PrimaryType'], energy_GeV, zenith, azimuth,
                     core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
                     new_weight, row['RandomSeed'], try_idx
                 ))
