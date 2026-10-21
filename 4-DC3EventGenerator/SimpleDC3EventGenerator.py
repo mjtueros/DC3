@@ -4,8 +4,12 @@ import configparser
 import csv
 import sqlite3
 import math
+import time
+import select
 import numpy as np
 import matplotlib.pyplot as plt
+from VisualsEventGenerator import visualize_cores, visualize_distributions
+
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -65,6 +69,7 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
 
     return triggered_indices, amplitudes
 
+
 # ==============================================================================
 # HEXAGON RANDOM SAMPLING
 # ==============================================================================
@@ -98,6 +103,7 @@ def rand_in_hex(center, size):
     offset = size * (u1 * v1 + u2 * v2)
     
     return np.array([center[0] + offset[0], center[1] + offset[1], center[2]])
+
 
 # ==============================================================================
 # DATABASE SETUP
@@ -145,8 +151,6 @@ def init_database(db_path):
     conn.commit()
     return conn
 
-import time
-import select
 
 def resolve_ini_path(config_file_path, path_str):
     """
@@ -160,6 +164,7 @@ def resolve_ini_path(config_file_path, path_str):
         return path_str
     config_dir = os.path.dirname(os.path.abspath(config_file_path))
     return os.path.abspath(os.path.join(config_dir, path_str))
+
 
 def pause_for_review(timeout=5.0):
     """
@@ -189,6 +194,7 @@ def pause_for_review(timeout=5.0):
             print("Continuing...\n")
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+
 
 # ==============================================================================
 # MAIN GENERATOR
@@ -278,8 +284,8 @@ def main():
 
     # Variables for dry-run plotting
     plot_all_cores, plot_triggered_cores = [], []
-    in_zen, in_egy, in_wgt = [], [], []
-    out_zen, out_egy, out_wgt = [], [], []
+    in_zen, in_az, in_egy, in_wgt, in_xmax = [], [], [], [], []
+    out_zen, out_az, out_egy, out_wgt, out_xmax = [], [], [], [], []
 
     # 3. LOOP EVENTS
     if not os.path.exists(events_db):
@@ -302,6 +308,7 @@ def main():
             continue
             
         xmax_dist_km = float(row['XmaxDistance_km'])
+        xmax_g_cm2 = float(row['Xmax_g_cm2'])
         if not (dist_min <= xmax_dist_km <= dist_max):
             continue
 
@@ -327,9 +334,11 @@ def main():
             # Dry run stats (Input)
             if dry_run:
                 in_zen.append(zenith)
+                in_az.append(azimuth)
                 in_egy.append(energy)
                 in_wgt.append(original_weight)
-            
+                in_xmax.append(xmax_g_cm2)
+
             for try_idx in range(1, max_tries + 1):
                 core_pos = rand_in_hex(center_pos, hex_size)
                 tested_cores.append(core_pos)
@@ -354,8 +363,10 @@ def main():
                 if triggered:
                     plot_triggered_cores.append(core_pos)
                     out_zen.append(zenith)
+                    out_az.append(azimuth)
                     out_egy.append(energy)
                     out_wgt.append(new_weight)
+                    out_xmax.append(xmax_g_cm2)
 
             # Save to Database
             if not dry_run:
@@ -395,47 +406,8 @@ def main():
     # 4. WRAP UP & PLOTTING
     if dry_run:
         print("\nDry Run Complete. Generating plots...")
-        plot_all, plot_trig = np.array(plot_all_cores), np.array(plot_triggered_cores)
-        
-        # --- FIGURE 1: Core Map ---
-        plt.figure(figsize=(10, 8))
-        plt.scatter(ant_pos[:, 0], ant_pos[:, 1], c='black', marker='^', label="Antennas", alpha=1)
-        if len(plot_all) > 0:
-            plt.scatter(plot_all[:, 0], plot_all[:, 1], c='gray', s=5, alpha=0.3, label="Tested Cores")
-        if len(plot_trig) > 0:
-            plt.scatter(plot_trig[:, 0], plot_trig[:, 1], c='red', s=20, label="Triggered Cores")
-            
-        plt.xlabel("Easting (m)")
-        plt.ylabel("Northing (m)")
-        plt.title(f"Dry Run (Cone: {cone_angle}°): {len(plot_trig)} Triggers / {len(plot_all)} Drops")
-        plt.legend()
-        plt.axis('equal')
-        plt.grid(True, linestyle="--", alpha=0.6)
-        
-        # --- FIGURE 2: Distributions ---
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-        fig.suptitle(f"Distributions (Cone: {cone_angle}° | Min Trigger: {min_trigger} ants)")
-        
-        # Zenith Plot
-        ax1.hist(in_zen, bins=20, histtype='step', color='black', linewidth=2, label='Input (Unweighted)')
-        ax1.hist(out_zen, bins=20, histtype='step', color='red', linewidth=2, label='Output (Unweighted)')
-        ax1.hist(out_zen, bins=20, weights=out_wgt, color='red', alpha=0.3, label='Output (Weighted)')
-        ax1.set_xlabel("Zenith Angle (Degrees)")
-        ax1.set_ylabel("Counts")
-        ax1.legend()
-        
-        # Energy Plot
-        log_in_egy = np.log10(in_egy)
-        log_out_egy = np.log10(out_egy) if len(out_egy) > 0 else []
-        ax2.hist(log_in_egy, bins=15, histtype='step', color='black', linewidth=2, label='Input (Unweighted)')
-        ax2.hist(log_out_egy, bins=15, histtype='step', color='blue', linewidth=2, label='Output (Unweighted)')
-        ax2.hist(log_out_egy, bins=15, weights=out_wgt, color='blue', alpha=0.3, label='Output (Weighted)')
-        ax2.set_xlabel("Log10(Energy [EeV])")
-        ax2.set_ylabel("Counts")
-        ax2.legend()
-        
-        plt.tight_layout()
-        plt.show()
+        visualize_cores(ant_pos, cone_angle, plot_all_cores, plot_triggered_cores)
+        visualize_distributions(cone_angle, min_trigger, in_zen, out_zen, in_az, out_az, in_egy,  out_egy, in_xmax, out_xmax, out_wgt)
     else:
         conn.close()
         print(f"\nSimulation complete. Saved to {out_db}")
