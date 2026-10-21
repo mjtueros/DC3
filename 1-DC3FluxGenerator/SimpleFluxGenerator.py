@@ -113,7 +113,7 @@ print("#########################################################################
 print("Flux Generator Configuration")
 print("################################################################################")
 print(f"Config File:    {config_file}")
-print(f"Events (Nsims): {Nsims}")
+print(f"Number of Sims: {Nsims}")
 print(f"Output File:    {OutputFileName}")
 print(f"Library Prefix: {LibraryPrefix}")
 print(f"Models:         {ModelBins}")
@@ -228,11 +228,11 @@ conn = sqlite3.connect(OutputFileName)
 cursor = conn.cursor()
 
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Events (
-        EventNumber INTEGER PRIMARY KEY,
-        EventName TEXT,
+    CREATE TABLE IF NOT EXISTS Showers (
+        ShowerNumber INTEGER PRIMARY KEY,
+        ShowerName TEXT,
         RandomSeed TEXT,
-        EventWeight REAL,
+        ShowerWeight REAL,
         PrimaryType TEXT,
         Energy_GeV REAL,
         Zenith_Deg REAL,
@@ -241,43 +241,43 @@ cursor.execute("""
     )
 """)
 
-events_data = []
+showers_data = []
 
 for i in range(0, Nsims):
     RandomSeed = random.random()
-    EventWeight = 1.0 
+    ShowerWeight = 1.0 
 
     Energy = float(RandomEnergies[i])
     Zenith = float(RandomZeniths[i])
     Azimuth = float(RandomAzimuths[i])
     
     RandomSeed_str = f"{RandomSeed:.10f}"
-    Energystring = '{0:.3}'.format(Energy)
+    Energystring = '{0:.3}'.format(Energy/1e9)
     Zenithstring = '{0:.3}'.format(Zenith)
     Azimuthstring = '{0:.4}'.format(Azimuth)
     
     Primary = PrimaryBins[i % len(PrimaryBins)] 
     Model = ModelBins[i % len(ModelBins)] 
     
-    EventNumber = i
+    ShowerNumber = i+1
 
-    EventName = (LibraryPrefix + "_" + Model + "_" + Primary + "_" + 
+    ShowerName = (LibraryPrefix + "_" + Model + "_" + Primary + "_" + 
                  Energystring + "_" + Zenithstring + "_" + 
-                 Azimuthstring + "_" + str(EventNumber))
+                 Azimuthstring + "_" + str(ShowerNumber))
 
-    events_data.append((
-        EventNumber, EventName, RandomSeed_str, EventWeight, 
+    showers_data.append((
+        ShowerNumber, ShowerName, RandomSeed_str, ShowerWeight, 
         Primary, Energy, Zenith, Azimuth, Model
     ))
 
 cursor.executemany("""
-    INSERT INTO Events (
-        EventNumber, EventName, RandomSeed, EventWeight, 
+    INSERT INTO Showers (
+        ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
         PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-""", events_data)
+""", showers_data)
 
 conn.commit()
 conn.close()
 
-print(f"Success! {Nsims} events written to {OutputFileName}")
+print(f"Success! {Nsims} showers written to {OutputFileName}")

@@ -1,6 +1,6 @@
 # DC3 Xmax Getter
 
-Computes the shower maximum depth ($X_{\max}$), line-of-sight geometric distance to $X_{\max}$, and altitude above sea level for each event in the flux database, writing the augmented dataset to an SQLite database.
+Computes the shower maximum depth ($X_{\max}$), line-of-sight geometric distance to $X_{\max}$, and altitude above sea level for each shower in the flux database, writing the augmented dataset to an SQLite database.
 
 ## Usage
 

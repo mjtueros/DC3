@@ -215,7 +215,7 @@ def main():
     # Query all events that triggered
 
     cursor.execute(f"""
-        SELECT EventID, OriginalEventName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
+        SELECT EventID, EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
                Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, RandomSeed, Weight
         FROM Events
         WHERE Weight > 0
@@ -228,18 +228,18 @@ def main():
     n_failed = 0
 
     for row in events:
-        (event_id, orig_event_name, primary, energy_val, zenith, azimuth, 
+        (event_id, event_name, shower_name, primary, energy_val, zenith, azimuth, 
          core_n, core_w, core_u, xmax_n, xmax_w, xmax_u, random_seed, weight) = row
         
         energy_GeV = float(energy_val)
-        task_name = f"{orig_event_name}_{event_id}"
+        task_name = f"{event_name}"
         out_inp_path = os.path.join(out_dir, f"{task_name}.inp")
         
         print(f"Generating input for: {task_name}")
 
         # 3. OPTIONAL VALIDATION
         if sry_dir:
-            is_valid = validate_against_sry(sry_dir, orig_event_name, primary, energy_GeV, zenith, azimuth)
+            is_valid = validate_against_sry(sry_dir, shower_name, primary, energy_GeV, zenith, azimuth)
             if not is_valid:
                 print(f"  [Failed] Skipping {task_name} due to .sry metadata mismatch.")
                 n_failed += 1
@@ -254,7 +254,8 @@ def main():
         with open(out_inp_path, "w") as f:
             f.write("################################################################################\n")
             f.write("# ZHAireS Input File generated from SQLite Trigger Database\n")
-            f.write(f"# OriginalEventName : {orig_event_name}\n")
+            f.write(f"# ShowerName        : {shower_name}\n")
+            f.write(f"# EventName         : {event_name}\n")
             f.write(f"# EventWeight       : {weight:.6e}\n")
             f.write(f"# CorePosition_NWU  : {core_n:.2f} {core_w:.2f} {core_u:.2f}\n")
             f.write(f"# XmaxPosition_NWU  : {xmax_n:.2f} {xmax_w:.2f} {xmax_u:.2f}\n")

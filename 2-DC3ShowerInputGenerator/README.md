@@ -1,6 +1,6 @@
 # DC3 Shower Input Generator
 
-Reads the simulated cosmic ray events from the Flux Generator SQLite database and produces individual input `.inp` files for particle simulations in the AIRES framework by attaching dynamic event headers to a static skeleton template.
+Reads the simulated cosmic ray showers from the Flux Generator SQLite database and produces individual input `.inp` files for particle simulations in the AIRES framework by attaching dynamic event headers to a static skeleton template.
 
 ## Usage
 

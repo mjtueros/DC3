@@ -14,7 +14,7 @@ def view_events_interactively(db_path):
     energy_col = "Energy_GeV"
 
     cursor.execute(f"""
-        SELECT EventID, OriginalEventName, PrimaryType, {energy_col}, Zenith, Tries, Core_N, Core_W 
+        SELECT EventID, EventName, ShowerName, PrimaryType, {energy_col}, Zenith, Tries, Core_N, Core_W 
         FROM Events 
         WHERE Weight > 0
     """)
@@ -29,7 +29,7 @@ def view_events_interactively(db_path):
 
     # 4. Cycle through the events
     for i, event_row in enumerate(triggered_events):
-        ev_id, ev_name, primary, energy_val, zenith, tries, final_core_n, final_core_w = event_row
+        ev_id, ev_name, shower_name, primary, energy_val, zenith, tries, final_core_n, final_core_w = event_row
         energy_GeV = float(energy_val)  
         energy_EeV = energy_GeV * 1.0e-9
         

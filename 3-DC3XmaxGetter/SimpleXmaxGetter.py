@@ -8,6 +8,7 @@ With no arguments, the script shows the original Xmax diagnostic plots and
 prints the correct command-line syntax.
 """
 
+from asyncio import unix_events
 import sys
 import os
 import time
@@ -198,13 +199,13 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
     
-    # Check if 'Events' table exists
-    cursor_in.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Events'")
+    # Check if 'Showers' table exists
+    cursor_in.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Showers'")
     if not cursor_in.fetchone():
-        raise ValueError("Input Database does not contain an 'Events' table.")
+        raise ValueError("Input Database does not contain an 'Showers' table.")
 
     # Check for missing required columns
-    cursor_in.execute("PRAGMA table_info(Events)")
+    cursor_in.execute("PRAGMA table_info(Showers)")
     columns = [col[1] for col in cursor_in.fetchall()]
 
     missing_columns = [
@@ -218,19 +219,19 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             + ", ".join(missing_columns)
         )
 
-    # Fetch all events
-    cursor_in.execute("SELECT * FROM Events")
+    # Fetch all showers
+    cursor_in.execute("SELECT * FROM Showers")
     rows = cursor_in.fetchall()
 
     conn_out = sqlite3.connect(output_file)
     cursor_out = conn_out.cursor()
 
     cursor_out.execute("""
-        CREATE TABLE IF NOT EXISTS Events (
-            EventNumber INTEGER PRIMARY KEY,
-            EventName TEXT,
+        CREATE TABLE IF NOT EXISTS Showers (
+            ShowerNumber INTEGER PRIMARY KEY,
+            ShowerName TEXT,
             RandomSeed TEXT,
-            EventWeight REAL,
+            ShowerWeight REAL,
             PrimaryType TEXT,
             Energy_GeV REAL,
             Zenith_Deg REAL,
@@ -242,15 +243,15 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
         )
     """)
 
-    print(f"Reading events from '{input_file}'...")
+    print(f"Reading showers from '{input_file}'...")
     print("Computing Xmax...")
 
-    n_events = 0
+    n_showers = 0
     n_errors = 0
-    events_data = []
+    showers_data = []
 
     for row in rows:
-        n_events += 1
+        n_showers += 1
         energy_GeV = float(row["Energy_GeV"]) if "Energy_GeV" in columns else float(row["Energy_EeV"]) * 1.0e9
 
         if(librarytype=="Dummy"):
@@ -269,8 +270,8 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
         elif(librarytype=="ZHAireS"):
 
             try:
-                EventName=row["EventName"]
-                sryfile=librarydir+"/"+EventName+"/"+EventName+".sry"
+                ShowerName=row["ShowerName"]
+                sryfile=librarydir+"/"+ShowerName+"/"+ShowerName+".sry"
                 print("tryng",sryfile)
                 import AiresInfoFunctions as AiresInfo
                 alt,distance,Xmaxx,Xmaxy,Xmaxz =AiresInfo.GetKmXmaxFromSry(sryfile)
@@ -278,10 +279,10 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
                 print(alt,distance,xmax)
                 
             except Exception as exc:
-                event_id = row["EventNumber"]
+                shower_id = row["ShowerNumber"]
                 print(
                     f"WARNING: could not calculate Xmax for "
-                    f"event {event_id}: {exc}"
+                    f"shower {shower_id}: {exc}"
                 )
                 distance, alt, xmax = None, None, None
                 n_errors += 1
@@ -289,29 +290,29 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             raise ValueError(f"Unknown library type: {librarytype}")
             sys.exit(1)
             
-        events_data.append((
-            row["EventNumber"], row["EventName"], row["RandomSeed"], row["EventWeight"],
+        showers_data.append((
+            row["ShowerNumber"], row["ShowerName"], row["RandomSeed"], row["ShowerWeight"],
             row["PrimaryType"], energy_GeV, row["Zenith_Deg"], row["Azimuth_Deg"], 
             row["Model"], xmax, alt, distance
         ))
 
-        if n_events % 100 == 0:
-            print(f"  Processed {n_events} events")
+        if n_showers % 100 == 0:
+            print(f"  Processed {n_showers} showers")
 
-    # Insert computed events into the output DB
+    # Insert computed showers into the output DB
     cursor_out.executemany("""
-        INSERT INTO Events (
-            EventNumber, EventName, RandomSeed, EventWeight, 
+        INSERT INTO Showers (
+            ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
             PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model,
             Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, events_data)
+    """, showers_data)
 
     conn_out.commit()
     conn_in.close()
     conn_out.close()
 
-    print(f"Done. Processed {n_events} events.")
+    print(f"Done. Processed {n_showers} showers.")
     if n_errors:
         print(f"WARNING: {n_errors} events could not be processed.")
     print(f"Output written to '{output_file}'.")
