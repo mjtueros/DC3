@@ -35,6 +35,7 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
         Expected signal amplitudes for the triggered antennas.
     """
     # 1. SHOWER VECTOR
+    # k is the unit vector pointing in the direction of the shower
     theta = np.radians(theta_deg)
     phi = np.radians(phi_deg)
     k = np.array([
@@ -44,16 +45,24 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     ])
 
     # 2. XMAX TO ANTENNA VECTORS
-    u_ant = ant_pos - xmax
+    # u_ant is the unit vector pointing from Xmax to the antenna position
+    u_ant =  xmax - ant_pos
+    # dist is the distance from Xmax to the antenna position
     dist = np.linalg.norm(u_ant, axis=1)
+    # Normalize
     u_ant = u_ant / dist[:, np.newaxis]
 
     # 3. ANGULAR DISTANCE
+    # kx is the cosine of the angle between the shower vector and the antenna position vector
+    # We use the dot product of the two unit vectors to get the cosine of the angle between them
     kx = np.dot(u_ant, k)
+    # Clip the values to the range [-1.0, 1.0] to avoid numerical errors
     kx = np.clip(kx, -1.0, 1.0)
+    # w_deg is the angle in degrees between the shower vector and the antenna position vector
     w_deg = np.degrees(np.arccos(kx))
 
-    # 4. SELECTION
+    # 4. TRIGGERED ANTENNAS
+    # triggered_indices is the list of indices of the antennas that fall within the cone
     triggered_indices = np.where(w_deg <= cone_angle)[0]
     
     # 5. EXPECTED AMPLITUDE (Mock model)
@@ -333,8 +342,8 @@ def main():
             for try_idx in range(1, max_tries + 1):
                 core_pos = rand_in_hex(center_pos, hex_size)
                 tested_cores.append(core_pos)
-                
-                xmax_pos = core_pos - (xmax_dist_km * 1000.0 * k_vector)
+                #xmax_dist*kvector gives the xmax position from the core, minus the core to move to the cite CS
+                xmax_pos = (xmax_dist_km * 1000.0 * k_vector) - core_pos
                 trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
                 
                 if len(trig_idx) >= min_trigger:
@@ -376,6 +385,7 @@ def main():
                 if triggered:
                     ant_inserts = []
                     for idx, amp in zip(trig_idx, amplitudes):
+                        #ant_pos is in site CS, and core_pos is in site CS too, so the difference is the relative position
                         rel_pos = ant_pos[idx] - core_pos
                         ant_inserts.append((event_id, ant_ids[idx], rel_pos[0], rel_pos[1], rel_pos[2], amp))
                         
