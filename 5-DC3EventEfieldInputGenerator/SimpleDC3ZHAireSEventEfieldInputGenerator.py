@@ -216,7 +216,7 @@ def main():
 
     cursor.execute(f"""
         SELECT EventID, OriginalEventName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
-               Core_E, Core_N, Core_U, Xmax_E, Xmax_N, Xmax_U, RandomSeed, Weight
+               Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, RandomSeed, Weight
         FROM Events
         WHERE Weight > 0
     """)
@@ -229,7 +229,7 @@ def main():
 
     for row in events:
         (event_id, orig_event_name, primary, energy_val, zenith, azimuth, 
-         core_e, core_n, core_u, xmax_e, xmax_n, xmax_u, random_seed, weight) = row
+         core_n, core_w, core_u, xmax_n, xmax_w, xmax_u, random_seed, weight) = row
         
         energy_GeV = float(energy_val)
         task_name = f"{orig_event_name}_{event_id}"
@@ -246,8 +246,8 @@ def main():
                 continue
 
         # 4. CALCULATE XMAX GEOMETRY
-        core_pos = np.array([core_e, core_n, core_u])
-        xmax_pos = np.array([xmax_e, xmax_n, xmax_u])
+        core_pos = np.array([core_n, core_w, core_u])
+        xmax_pos = np.array([xmax_n, xmax_w, xmax_u])
         xmax_dist_m = np.linalg.norm(xmax_pos - core_pos)
 
         # 5. WRITE CUSTOM HEADER COMMENTS
@@ -256,8 +256,8 @@ def main():
             f.write("# ZHAireS Input File generated from SQLite Trigger Database\n")
             f.write(f"# OriginalEventName : {orig_event_name}\n")
             f.write(f"# EventWeight       : {weight:.6e}\n")
-            f.write(f"# CorePosition_ENU  : {core_e:.2f} {core_n:.2f} {core_u:.2f}\n")
-            f.write(f"# XmaxPosition_ENU  : {xmax_e:.2f} {xmax_n:.2f} {xmax_u:.2f}\n")
+            f.write(f"# CorePosition_NWU  : {core_n:.2f} {core_w:.2f} {core_u:.2f}\n")
+            f.write(f"# XmaxPosition_NWU  : {xmax_n:.2f} {xmax_w:.2f} {xmax_u:.2f}\n")
             f.write(f"# XmaxDistance_m    : {xmax_dist_m:.2f}\n")
             f.write("################################################################################\n")
 
@@ -268,7 +268,7 @@ def main():
                                         RandomSeed=random_seed, OutputFile=out_inp_path)
 
         # 7. FETCH TRIGGERED ANTENNAS
-        cursor.execute("SELECT AntennaID, Rel_E, Rel_N, Rel_U FROM TriggeredAntennas WHERE EventID = ?", (event_id,))
+        cursor.execute("SELECT AntennaID, Rel_N, Rel_W, Rel_U FROM TriggeredAntennas WHERE EventID = ?", (event_id,))
         antennas = cursor.fetchall()
         
         if antennas:
@@ -280,7 +280,7 @@ def main():
                                                AntennaNames=ant_names, 
                                                AntennaSelection=numeric_selection)
             
-            AiresInp.CreateSmartTimeWindowInp(xmax_dist_m, out_inp_path, AdditionalTmin=-50, AdditionalTmax=250)
+            AiresInp.CreateTimeWindowInp(xmax_dist_m, out_inp_path, Tmin=-250, Tmax=1000-250)
         else:
             print(f"  [Failed] No antennas found for Event {event_id}. Skipping.")
             n_failed += 1

@@ -17,13 +17,13 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     Parameters:
     -----------
     xmax : numpy array (3,)
-        3D location of Xmax (Easting, Northing, Up) in meters.
+        3D location of Xmax (Northing, Westing, Up) in meters.
     theta_deg : float
         Zenith angle of the shower in GRAND coordinates (degrees).
     phi_deg : float
         Azimuth angle of the shower in GRAND coordinates (degrees).
     ant_pos : numpy array (N, 3)
-        List of N antenna positions (Easting, Northing, Up) in meters.
+        List of N antenna positions (Northing, Westing, Up) in meters.
     cone_angle : float
         Angle of the selection cone (degrees).
 
@@ -75,14 +75,14 @@ def rand_in_hex(center, size):
     Parameters:
     -----------
     center : numpy array (3,)
-        The (Easting, Northing, Up) center of the hexagon in meters.
+        The (Northing, Westing, Up) center of the hexagon in meters.
     size : float
         The distance from the center to a vertex (radius) in meters.
         
     Returns:
     --------
     point : numpy array (3,)
-        A random (Easting, Northing, Up) coordinate inside the hexagon.
+        A random (Northing, Westing, Up) coordinate inside the hexagon.
     """
     vectors = [
         np.array([-1.0, 0.0]),
@@ -114,11 +114,11 @@ def init_database(db_path):
             Energy_GeV REAL,
             Zenith REAL,
             Azimuth REAL,
-            Core_E REAL,
             Core_N REAL,
+            Core_W REAL,
             Core_U REAL,
-            Xmax_E REAL,
             Xmax_N REAL,
+            Xmax_W REAL,
             Xmax_U REAL,
             Weight REAL,
             RandomSeed TEXT,
@@ -127,16 +127,16 @@ def init_database(db_path):
         CREATE TABLE IF NOT EXISTS TriggeredAntennas (
             EventID INTEGER,
             AntennaID TEXT,
-            Rel_E REAL,
             Rel_N REAL,
+            Rel_W REAL,
             Rel_U REAL,
             Amplitude REAL,
             FOREIGN KEY(EventID) REFERENCES Events(EventID)
         );
         CREATE TABLE IF NOT EXISTS TestedCores (
             EventID INTEGER,
-            Core_E REAL,
             Core_N REAL,
+            Core_W REAL,
             FOREIGN KEY(EventID) REFERENCES Events(EventID)
         );
         CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
@@ -216,8 +216,8 @@ def main():
     antennas_csv = resolve_ini_path(config_file, sec.get("antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"))
     out_db = resolve_ini_path(config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite"))
     
-    center_e = sec.getfloat("center_e", fallback=0.0)
     center_n = sec.getfloat("center_n", fallback=0.0)
+    center_w = sec.getfloat("center_w", fallback=0.0)
     center_u = sec.getfloat("center_u", fallback=1250.0)
     hex_size = sec.getfloat("hex_size", fallback=7000.0)
     cone_angle = sec.getfloat("cone_angle", fallback=1.0)
@@ -237,7 +237,7 @@ def main():
     print(f"Input DB:        {events_db}")
     print(f"Antennas CSV:    {antennas_csv}")
     print(f"Output DB:       {out_db}")
-    print(f"Hexagon Center:  ({center_e}, {center_n}, {center_u}) m")
+    print(f"Hexagon Center:  ({center_n}, {center_w}, {center_u}) m")
     print(f"Hexagon Size:    {hex_size} m")
     print(f"Cone Angle:      {cone_angle} deg")
     print(f"Min Trigger:     {min_trigger} antennas")
@@ -268,7 +268,7 @@ def main():
         reader = csv.DictReader(f)
         for row in reader:
             ant_ids.append(row['ID'])
-            ant_pos_list.append([float(row['CS_Y_East_m']), float(row['CS_X_North_m']), float(row['CS_Z_Height_m'])])
+            ant_pos_list.append([float(row['CS_X_North_m']), float(row['CS_Y_West_m']), float(row['CS_Z_Height_m'])])
     ant_pos = np.array(ant_pos_list)
 
     # 2. INIT DATABASE
@@ -287,7 +287,7 @@ def main():
         sys.exit(1)
 
     print(f"Processing events from {events_db} (Reuse factor: {reuse})...")
-    center_pos = np.array([center_e, center_n, center_u])
+    center_pos = np.array([center_n, center_w, center_u])
     
     success_count = 0
     
@@ -363,7 +363,7 @@ def main():
                 
                 cursor.execute("""
                     INSERT INTO Events (OriginalEventName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
-                                        Core_E, Core_N, Core_U, Xmax_E, Xmax_N, Xmax_U, Weight, RandomSeed, Tries)
+                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     unique_event_name, row['PrimaryType'], energy_GeV, zenith, azimuth,
@@ -380,14 +380,14 @@ def main():
                         ant_inserts.append((event_id, ant_ids[idx], rel_pos[0], rel_pos[1], rel_pos[2], amp))
                         
                     cursor.executemany("""
-                        INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_E, Rel_N, Rel_U, Amplitude)
+                        INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_N, Rel_W, Rel_U, Amplitude)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, ant_inserts)
                     print(f"Event {unique_event_name} triggered on try {try_idx} with {len(trig_idx)} antennas.")
                 
                 # Always save tested cores
                 core_inserts = [(event_id, c[0], c[1]) for c in tested_cores]
-                cursor.executemany("INSERT INTO TestedCores (EventID, Core_E, Core_N) VALUES (?, ?, ?)", core_inserts)
+                cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W) VALUES (?, ?, ?)", core_inserts)
                 conn.commit()
                 
     conn_in.close()
@@ -405,8 +405,8 @@ def main():
         if len(plot_trig) > 0:
             plt.scatter(plot_trig[:, 0], plot_trig[:, 1], c='red', s=20, label="Triggered Cores")
             
-        plt.xlabel("Easting (m)")
-        plt.ylabel("Northing (m)")
+        plt.xlabel("Northing (m)")
+        plt.ylabel("Westing (m)")
         plt.title(f"Dry Run (Cone: {cone_angle}°): {len(plot_trig)} Triggers / {len(plot_all)} Drops")
         plt.legend()
         plt.axis('equal')

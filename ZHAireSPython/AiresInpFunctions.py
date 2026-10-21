@@ -79,15 +79,15 @@ def CreateAiresAntennaListInp(AntennaPositions,OutputFile,AntennaNames=None,Ante
     file.write('# Antenna List created with CreateAntennaListInp v0.1                              #\n')
     file.write('####################################################################################\n')
 
-    nantennnas=len(AntennaPositions[:,1])
+    nantennas=len(AntennaPositions[:,1])
 
     if(len(AntennaSelection)==1):
       if(AntennaSelection=="All" or AntennaSelection=="all"):
-        AntennaSelection=np.arange(0,nanntenas)
+        AntennaSelection=np.arange(0,nantennas)
 
     if(AntennaNames is None):
       AntennaNames=[]
-      for i in range(0,nantennnas):
+      for i in range(0,nantennas):
         AntennaNames.append("None")
       for i in AntennaSelection:
         AntennaNames[i]="A"+str(i)
