@@ -106,7 +106,7 @@ except ImportError as e:
 # ==============================================================================
 # 2. EVENT PROCESSING
 # ==============================================================================
-def process_events(db_path, skeleton_path, output_dir, ground_alt_m):
+def process_events(db_path, skeleton_path, output_dir):
     if not os.path.exists(skeleton_path):
         print(f"ERROR: Skeleton file not found: '{skeleton_path}' (resolved relative to config file).")
         sys.exit(1)
@@ -136,13 +136,15 @@ def process_events(db_path, skeleton_path, output_dir, ground_alt_m):
     for row in events:
         event_name = row["EventName"]
         primary = row["PrimaryType"]
-        energy_eev = float(row["Energy_EeV"])
+        energy_gev = float(row["Energy_GeV"])
         zenith = float(row["Zenith_Deg"])
         azimuth = float(row["Azimuth_Deg"])
         seed = row["RandomSeed"]
         
         out_filename = os.path.join(output_dir, f"{event_name}.inp")
         
+        # CreateAiresInputHeader is external (ZHAireSPython) and expects Energy in EeV
+        energy_eev = energy_gev * 1.0e-9
         AiresInp.CreateAiresInputHeader(
             event_name,
             primary,
@@ -190,7 +192,6 @@ def main():
 
     db_file = resolve_ini_path(config_file, sec.get("db_file", fallback="ExampleFlux.sqlite"))
     skeleton_file = resolve_ini_path(config_file, sec.get("skeleton_file", fallback="2-DC3ShowerInputGenerator/Example.ZHAireS.Skeleton.inp"))
-    ground_alt = sec.getfloat("ground_alt", fallback=1400.0)
     out_dir = resolve_ini_path(config_file, sec.get("out_dir", fallback="AiresInputs"))
 
     print("################################################################################")
@@ -199,7 +200,6 @@ def main():
     print(f"Config File:     {config_file}")
     print(f"Database:        {db_file}")
     print(f"Skeleton File:   {skeleton_file}")
-    print(f"Ground Altitude: {ground_alt} meters")
     print(f"Output Dir:      {out_dir}/")
     print("################################################################################\n")
 
@@ -214,7 +214,7 @@ def main():
 
     pause_for_review(5.0)
 
-    process_events(db_file, skeleton_file, out_dir, ground_alt)
+    process_events(db_file, skeleton_file, out_dir)
 
 if __name__ == "__main__":
     main()

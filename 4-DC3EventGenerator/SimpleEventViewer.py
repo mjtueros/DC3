@@ -8,9 +8,13 @@ def view_events_interactively(db_path):
     cursor = conn.cursor()
 
     # 2. Query only events that successfully triggered (Weight > 0)
-    # We also grab the final Core_E and Core_N to highlight them
-    cursor.execute("""
-        SELECT EventID, OriginalEventName, PrimaryType, Energy_EeV, Zenith, Tries, Core_E, Core_N 
+    # We also grab the final Core_N and Core_W to highlight them
+    cursor.execute("PRAGMA table_info(Events)")
+    columns = [col[1] for col in cursor.fetchall()]
+    energy_col = "Energy_GeV"
+
+    cursor.execute(f"""
+        SELECT EventID, OriginalEventName, PrimaryType, {energy_col}, Zenith, Tries, Core_N, Core_W 
         FROM Events 
         WHERE Weight > 0
     """)
@@ -25,30 +29,32 @@ def view_events_interactively(db_path):
 
     # 4. Cycle through the events
     for i, event_row in enumerate(triggered_events):
-        ev_id, ev_name, primary, energy, zenith, tries, final_core_e, final_core_n = event_row
+        ev_id, ev_name, primary, energy_val, zenith, tries, final_core_n, final_core_w = event_row
+        energy_GeV = float(energy_val)  
+        energy_EeV = energy_GeV * 1.0e-9
         
         # Fetch all tested cores for this specific event
-        cursor.execute("SELECT Core_E, Core_N FROM TestedCores WHERE EventID = ?", (ev_id,))
+        cursor.execute("SELECT Core_N, Core_W FROM TestedCores WHERE EventID = ?", (ev_id,))
         tested_cores = cursor.fetchall()
         
         # Unzip coordinates for plotting (or return empty lists if somehow none exist)
-        test_e, test_n = zip(*tested_cores) if tested_cores else ([], [])
+        test_n, test_w = zip(*tested_cores) if tested_cores else ([], [])
 
         # Clear the plot from the previous event
         ax.clear()
         
         # Plot all tested cores in grey
-        ax.scatter(test_e, test_n, c='gray', s=15, alpha=0.5, label='Tested Cores')
+        ax.scatter(test_n, test_w, c='gray', s=15, alpha=0.5, label='Tested Cores')
         
         # Highlight the successfully triggered core with a big red star
-        ax.scatter([final_core_e], [final_core_n], c='red', s=200, marker='*', 
+        ax.scatter([final_core_n], [final_core_w], c='red', s=200, marker='*', 
                    edgecolors='black', label='Triggered Core')
         
         # Format the plot
         ax.set_title(f"Event {i+1}/{len(triggered_events)}: {ev_name}\n"
-                     f"({primary}, {energy:.2f} EeV, Zenith: {zenith:.1f}°) | Drops to trigger: {tries}")
-        ax.set_xlabel("Easting (m)")
-        ax.set_ylabel("Northing (m)")
+                     f"({primary}, {energy_EeV:.2f} EeV, Zenith: {zenith:.1f}°) | Drops to trigger: {tries}")
+        ax.set_xlabel("Northing (m)")
+        ax.set_ylabel("Westing (m)")
         ax.axis('equal') # Keeps the physical geometry square
         ax.grid(True, linestyle="--", alpha=0.6)
         ax.legend()
