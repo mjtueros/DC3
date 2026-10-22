@@ -110,8 +110,10 @@ Emax = sec.getfloat("Emax", fallback=np.power(10.0, 9.6))
 show_plots = sec.getboolean("show_plots", fallback=False)
 
 # Setting seed for random number generator
-FluxSeed = sec.getfloat("FluxSeed", fallback=random.random())
+FluxSeed = sec.getint("FluxSeed", fallback=random.random())
+# Initializing both random number generators, as they are independent.
 random.seed(FluxSeed)
+np.random.seed(FluxSeed)
 
 print("################################################################################")
 print("Flux Generator Configuration")
@@ -126,8 +128,8 @@ print(f"Zenith:         [{mintheta}, {maxtheta}] deg")
 print(f"Azimuth:        [{minphi}, {maxphi}] deg")
 print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] GeV")
 print(f"Show Plots:     {show_plots}")
+print(f"Seed:           {FluxSeed}")
 print("################################################################################\n")
-
 pause_for_review(5.0)
 
 # Set up global plotting parameters for readability
