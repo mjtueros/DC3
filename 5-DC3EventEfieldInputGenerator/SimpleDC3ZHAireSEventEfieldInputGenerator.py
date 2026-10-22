@@ -43,9 +43,10 @@ except ImportError as e:
 # ==============================================================================
 # VALIDATION HELPER
 # ==============================================================================
-def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy, db_zenith, db_azimuth):
+def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy_GeV, db_zenith, db_azimuth):
     """
     Looks for the .sry file of the original event and validates the parameters.
+    db_energy_GeV is expected in GeV.
     """
     search_path = os.path.join(sry_dir, original_event_name, "*.sry")
     sry_files = glob.glob(search_path)
@@ -64,6 +65,9 @@ def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy, db
     # Read SRY using the GRAND outmode (so Zenith/Azimuth match our DB conventions)
     sry_zen, sry_azim, sry_energy, sry_primary, _, _, _ = AiresInfo.ReadAiresSry(sry_file, outmode="GRAND")
     
+    # In GRAND mode, AiresInfo.ReadAiresSry returns energy in EeV. Convert to GeV:
+    sry_energy_GeV = sry_energy * 1.0e9
+
     # Check Primary
     if str(sry_primary).strip().lower() != str(db_primary).strip().lower():
         if str(db_primary) != "2212" and str(db_primary) != "Proton":
@@ -71,8 +75,8 @@ def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy, db
             return False
 
     # Check Floats with relative tolerance of 1%
-    if not math.isclose(sry_energy, db_energy, rel_tol=1e-2):
-        print(f"  [Mismatch] Energy: DB={db_energy:.4e} EeV, SRY={sry_energy:.4e} EeV")
+    if not math.isclose(sry_energy_GeV, db_energy_GeV, rel_tol=1e-2):
+        print(f"  [Mismatch] Energy: DB={db_energy_GeV:.4e} GeV, SRY={sry_energy_GeV:.4e} GeV")
         return False
         
     if not math.isclose(sry_zen, db_zenith, rel_tol=1e-2):
@@ -209,9 +213,10 @@ def main():
     cursor = conn.cursor()
 
     # Query all events that triggered
-    cursor.execute("""
-        SELECT EventID, OriginalEventName, PrimaryType, Energy_EeV, Zenith, Azimuth, 
-               Core_E, Core_N, Core_U, Xmax_E, Xmax_N, Xmax_U, RandomSeed, Weight
+
+    cursor.execute(f"""
+        SELECT EventID, EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
+               Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, RandomSeed, Weight
         FROM Events
         WHERE Weight > 0
     """)
@@ -223,44 +228,48 @@ def main():
     n_failed = 0
 
     for row in events:
-        (event_id, orig_event_name, primary, energy, zenith, azimuth, 
-         core_e, core_n, core_u, xmax_e, xmax_n, xmax_u, random_seed, weight) = row
+        (event_id, event_name, shower_name, primary, energy_val, zenith, azimuth, 
+         core_n, core_w, core_u, xmax_n, xmax_w, xmax_u, random_seed, weight) = row
         
-        task_name = f"{orig_event_name}_{event_id}"
+        energy_GeV = float(energy_val)
+        task_name = f"{event_name}"
         out_inp_path = os.path.join(out_dir, f"{task_name}.inp")
         
         print(f"Generating input for: {task_name}")
 
         # 3. OPTIONAL VALIDATION
         if sry_dir:
-            is_valid = validate_against_sry(sry_dir, orig_event_name, primary, energy, zenith, azimuth)
+            is_valid = validate_against_sry(sry_dir, shower_name, primary, energy_GeV, zenith, azimuth)
             if not is_valid:
                 print(f"  [Failed] Skipping {task_name} due to .sry metadata mismatch.")
                 n_failed += 1
                 continue
 
         # 4. CALCULATE XMAX GEOMETRY
-        core_pos = np.array([core_e, core_n, core_u])
-        xmax_pos = np.array([xmax_e, xmax_n, xmax_u])
+        core_pos = np.array([core_n, core_w, core_u])
+        xmax_pos = np.array([xmax_n, xmax_w, xmax_u])
         xmax_dist_m = np.linalg.norm(xmax_pos - core_pos)
 
         # 5. WRITE CUSTOM HEADER COMMENTS
         with open(out_inp_path, "w") as f:
             f.write("################################################################################\n")
             f.write("# ZHAireS Input File generated from SQLite Trigger Database\n")
-            f.write(f"# OriginalEventName : {orig_event_name}\n")
+            f.write(f"# ShowerName        : {shower_name}\n")
+            f.write(f"# EventName         : {event_name}\n")
             f.write(f"# EventWeight       : {weight:.6e}\n")
-            f.write(f"# CorePosition_ENU  : {core_e:.2f} {core_n:.2f} {core_u:.2f}\n")
-            f.write(f"# XmaxPosition_ENU  : {xmax_e:.2f} {xmax_n:.2f} {xmax_u:.2f}\n")
+            f.write(f"# CorePosition_NWU  : {core_n:.2f} {core_w:.2f} {core_u:.2f}\n")
+            f.write(f"# XmaxPosition_NWU  : {xmax_n:.2f} {xmax_w:.2f} {xmax_u:.2f}\n")
             f.write(f"# XmaxDistance_m    : {xmax_dist_m:.2f}\n")
             f.write("################################################################################\n")
 
         # 6. WRITE AIRES HEADER
-        AiresInp.CreateAiresInputHeader(task_name, primary, zenith, azimuth, energy, 
+        # CreateAiresInputHeader is external (ZHAireSPython) and expects energy in EeV
+        energy_EeV = energy_GeV * 1.0e-9
+        AiresInp.CreateAiresInputHeader(task_name, primary, zenith, azimuth, energy_EeV, 
                                         RandomSeed=random_seed, OutputFile=out_inp_path)
 
         # 7. FETCH TRIGGERED ANTENNAS
-        cursor.execute("SELECT AntennaID, Rel_E, Rel_N, Rel_U FROM TriggeredAntennas WHERE EventID = ?", (event_id,))
+        cursor.execute("SELECT AntennaID, Rel_N, Rel_W, Rel_U FROM TriggeredAntennas WHERE EventID = ?", (event_id,))
         antennas = cursor.fetchall()
         
         if antennas:
@@ -272,7 +281,7 @@ def main():
                                                AntennaNames=ant_names, 
                                                AntennaSelection=numeric_selection)
             
-            AiresInp.CreateSmartTimeWindowInp(xmax_dist_m, out_inp_path, AdditionalTmin=-50, AdditionalTmax=250)
+            AiresInp.CreateTimeWindowInp(xmax_dist_m, out_inp_path, Tmin=-250, Tmax=1000-250)
         else:
             print(f"  [Failed] No antennas found for Event {event_id}. Skipping.")
             n_failed += 1

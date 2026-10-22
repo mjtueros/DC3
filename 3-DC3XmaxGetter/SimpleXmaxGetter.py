@@ -8,6 +8,7 @@ With no arguments, the script shows the original Xmax diagnostic plots and
 prints the correct command-line syntax.
 """
 
+from asyncio import unix_events
 import sys
 import os
 import time
@@ -66,8 +67,8 @@ def pause_for_review(timeout=5.0):
 # 1. ELONGATION RATE MODEL (Xmax vs Energy)
 # ==============================================================================
 
-def get_xmax(energy_eV, particle_type="Mixed"):
-    log_E = np.log10(energy_eV)
+def get_xmax(energy_GeV, particle_type="Mixed"):
+    log_E = np.log10(energy_GeV) + 9.0  # Convert GeV to eV for elongation rate formula: log10(E_eV) = log10(E_GeV * 10^9) = log10(E_GeV) + 9
 
     if particle_type.lower() == "proton":
         return 790.0 + 58.0 * (log_E - 19.0)
@@ -132,9 +133,9 @@ def accumulated_depth(s_target, theta_deg, detector_alt_km=0.0):
 
 
 def find_distance_to_xmax(
-    energy_eV, particle_type, theta_deg, detector_alt_km=0.0
+    energy_GeV, particle_type, theta_deg, detector_alt_km=0.0
 ):
-    target_xmax = get_xmax(energy_eV, particle_type)
+    target_xmax = get_xmax(energy_GeV, particle_type)
     total_depth_to_ground = accumulated_depth(
         0.0, theta_deg, detector_alt_km
     )
@@ -160,7 +161,7 @@ def find_distance_to_xmax(
 
 REQUIRED_COLUMNS = (
     "PrimaryType",
-    "Energy_EeV",
+    "Energy_GeV",
     "Zenith_Deg",
 )
 
@@ -169,18 +170,22 @@ def calculate_event_xmax(row, detector_alt_km=1.4):
     """
     Calculate Xmax for one SQLite event.
 
-    Energy is read from the SQLite DB in EeV and converted to eV before calling
-    the existing Xmax model.
+    Energy is read from the SQLite DB in GeV and passed to the Xmax model.
 
-    Returns distance to xmax[km], altitude
+    Returns distance to xmax[km], altitude, xmax
     """
+    if "Energy_GeV" in row.keys():
+        energy_GeV = float(row["Energy_GeV"])
+    elif "Energy_EeV" in row.keys():
+        energy_GeV = float(row["Energy_EeV"]) * 1.0e9
+    else:
+        raise KeyError("Row missing energy column ('Energy_GeV' or 'Energy_EeV')")
 
-    energy_eV = float(row["Energy_EeV"]) * 1.0e18
     particle_type = row["PrimaryType"]
     zenith_deg = float(row["Zenith_Deg"])
 
     distance, altitude, xmax = find_distance_to_xmax(
-        energy_eV,
+        energy_GeV,
         particle_type,
         zenith_deg,
         detector_alt_km=detector_alt_km,
@@ -194,13 +199,13 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
     
-    # Check if 'Events' table exists
-    cursor_in.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Events'")
+    # Check if 'Showers' table exists
+    cursor_in.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Showers'")
     if not cursor_in.fetchone():
-        raise ValueError("Input Database does not contain an 'Events' table.")
+        raise ValueError("Input Database does not contain an 'Showers' table.")
 
     # Check for missing required columns
-    cursor_in.execute("PRAGMA table_info(Events)")
+    cursor_in.execute("PRAGMA table_info(Showers)")
     columns = [col[1] for col in cursor_in.fetchall()]
 
     missing_columns = [
@@ -214,21 +219,21 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             + ", ".join(missing_columns)
         )
 
-    # Fetch all events
-    cursor_in.execute("SELECT * FROM Events")
+    # Fetch all showers
+    cursor_in.execute("SELECT * FROM Showers")
     rows = cursor_in.fetchall()
 
     conn_out = sqlite3.connect(output_file)
     cursor_out = conn_out.cursor()
 
     cursor_out.execute("""
-        CREATE TABLE IF NOT EXISTS Events (
-            EventNumber INTEGER PRIMARY KEY,
-            EventName TEXT,
+        CREATE TABLE IF NOT EXISTS Showers (
+            ShowerNumber INTEGER PRIMARY KEY,
+            ShowerName TEXT,
             RandomSeed TEXT,
-            EventWeight REAL,
+            ShowerWeight REAL,
             PrimaryType TEXT,
-            Energy_EeV REAL,
+            Energy_GeV REAL,
             Zenith_Deg REAL,
             Azimuth_Deg REAL,
             Model TEXT,
@@ -238,15 +243,17 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
         )
     """)
 
-    print(f"Reading events from '{input_file}'...")
+    print(f"Reading showers from '{input_file}'...")
     print("Computing Xmax...")
 
-    n_events = 0
+    n_showers = 0
     n_errors = 0
-    events_data = []
+    showers_data = []
 
     for row in rows:
-        n_events += 1
+        n_showers += 1
+        energy_GeV = float(row["Energy_GeV"]) if "Energy_GeV" in columns else float(row["Energy_EeV"]) * 1.0e9
+
         if(librarytype=="Dummy"):
           
             try:
@@ -263,8 +270,8 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
         elif(librarytype=="ZHAireS"):
 
             try:
-                EventName=row["EventName"]
-                sryfile=librarydir+"/"+EventName+"/"+EventName+".sry"
+                ShowerName=row["ShowerName"]
+                sryfile=librarydir+"/"+ShowerName+"/"+ShowerName+".sry"
                 print("tryng",sryfile)
                 import AiresInfoFunctions as AiresInfo
                 alt,distance,Xmaxx,Xmaxy,Xmaxz =AiresInfo.GetKmXmaxFromSry(sryfile)
@@ -272,37 +279,40 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
                 print(alt,distance,xmax)
                 
             except Exception as exc:
-                event_id = row["EventNumber"]
+                shower_id = row["ShowerNumber"]
                 print(
                     f"WARNING: could not calculate Xmax for "
-                    f"event {event_id}: {exc}"
+                    f"shower {shower_id}: {exc}"
                 )
                 distance, alt, xmax = None, None, None
                 n_errors += 1
-                      
-        events_data.append((
-            row["EventNumber"], row["EventName"], row["RandomSeed"], row["EventWeight"],
-            row["PrimaryType"], row["Energy_EeV"], row["Zenith_Deg"], row["Azimuth_Deg"], 
+        else:
+            raise ValueError(f"Unknown library type: {librarytype}")
+            sys.exit(1)
+            
+        showers_data.append((
+            row["ShowerNumber"], row["ShowerName"], row["RandomSeed"], row["ShowerWeight"],
+            row["PrimaryType"], energy_GeV, row["Zenith_Deg"], row["Azimuth_Deg"], 
             row["Model"], xmax, alt, distance
         ))
 
-        if n_events % 100 == 0:
-            print(f"  Processed {n_events} events")
+        if n_showers % 100 == 0:
+            print(f"  Processed {n_showers} showers")
 
-    # Insert computed events into the output DB
+    # Insert computed showers into the output DB
     cursor_out.executemany("""
-        INSERT INTO Events (
-            EventNumber, EventName, RandomSeed, EventWeight, 
-            PrimaryType, Energy_EeV, Zenith_Deg, Azimuth_Deg, Model,
+        INSERT INTO Showers (
+            ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
+            PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model,
             Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, events_data)
+    """, showers_data)
 
     conn_out.commit()
     conn_in.close()
     conn_out.close()
 
-    print(f"Done. Processed {n_events} events.")
+    print(f"Done. Processed {n_showers} showers.")
     if n_errors:
         print(f"WARNING: {n_errors} events could not be processed.")
     print(f"Output written to '{output_file}'.")
@@ -314,7 +324,7 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
 
 def show_plots():
     detector_h = 1.4  # Pierre Auger Observatory altitude in km
-    energy = 1e18     # 1 EeV
+    energy_GeV = 1e9  # 1 EeV = 1e9 GeV
 
     print("Calculating distances and altitudes (0 to 89 degrees)...")
     zeniths = np.linspace(0, 89, 90)
@@ -324,9 +334,9 @@ def show_plots():
     dist_M, alt_M = [], []
 
     for z in zeniths:
-        dp, ap, _ = find_distance_to_xmax(energy, "Proton", z, detector_h)
-        di, ai, _ = find_distance_to_xmax(energy, "Iron", z, detector_h)
-        dm, am, _ = find_distance_to_xmax(energy, "Mixed", z, detector_h)
+        dp, ap, _ = find_distance_to_xmax(energy_GeV, "Proton", z, detector_h)
+        di, ai, _ = find_distance_to_xmax(energy_GeV, "Iron", z, detector_h)
+        dm, am, _ = find_distance_to_xmax(energy_GeV, "Mixed", z, detector_h)
 
         dist_P.append(dp)
         alt_P.append(ap)
@@ -360,7 +370,7 @@ def show_plots():
         linewidth=2,
         label=(
             f"Proton Dist. "
-            f"(Xmax={get_xmax(energy, 'Proton'):.0f})"
+            f"(Xmax={get_xmax(energy_GeV, 'Proton'):.0f})"
         ),
     )
     ax1.plot(
@@ -370,7 +380,7 @@ def show_plots():
         linewidth=2,
         label=(
             f"Iron Dist. "
-            f"(Xmax={get_xmax(energy, 'Iron'):.0f})"
+            f"(Xmax={get_xmax(energy_GeV, 'Iron'):.0f})"
         ),
     )
 
@@ -474,7 +484,8 @@ def main():
     print(f"Config File:      {config_file}")
     print(f"Input DB:         {input_file}")
     print(f"Output DB:        {output_file}")
-    print(f"Detector Alt:     {detector_alt_km} km")
+    if librarytype == "Dummy":
+      print(f"Detector Alt:     {detector_alt_km} km")
     print(f"Show Plots:       {show_plots_flag}")
     print(f"Xmax Source:      {librarytype}")
     if librarytype == "ZHAireS":

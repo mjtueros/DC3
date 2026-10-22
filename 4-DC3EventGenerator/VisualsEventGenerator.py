@@ -612,8 +612,8 @@ def visualize_xmaxfits(
         plt.bar(
             bin_centers, hist_Fe_pdf, width=bin_width, alpha=0.5, label="Fe", color="C2"
         )
-        plt.plot(x_fit_p, y_fit_p, "b-", lw=2)
-        plt.plot(x_fit_Fe, y_fit_Fe, "g-", lw=2)
+        plt.plot(x_fit_p, y_fit_p, ls="-", color='C0', lw=2)
+        plt.plot(x_fit_Fe, y_fit_Fe, ls="-", color='C2', lw=2)
         plt.title(f"Xmax for {E_hist[1][i]:.1f} ≤ log10E < {E_hist[1][i+1]:.1f}")
         plt.xlabel(r"$X_{\rm max} \, (\rm g/cm^2)$")
         plt.ylabel("Normalized PDF")
@@ -624,6 +624,8 @@ def visualize_xmaxfits(
         # plt.savefig(path_figures / f"Xmax_fit_wgt_{E_hist[1][i]:.1f}.pdf")
 
     # Mean Xmax as a function of energy
+
+    eV_to_GeV = 1e-9
 
     line_p_s = np.loadtxt(path_data / "Sibyll23d_p.csv", skiprows=1, delimiter=",")
     line_fe_s = np.loadtxt(path_data / "Sibyll23d_fe.csv", skiprows=1, delimiter=",")
@@ -638,7 +640,7 @@ def visualize_xmaxfits(
         mu_p,
         xerr=xerr,
         yerr=mu_err_p,
-        fmt="b-",
+        color='b',
         ls="",
         marker="o",
         capsize=4,
@@ -649,35 +651,35 @@ def visualize_xmaxfits(
         mu_Fe,
         xerr=xerr,
         yerr=mu_err_Fe,
-        fmt="g-",
+        color='g',
         ls="",
         marker="o",
         capsize=4,
         label="Iron (DC2 ZHAireS-AN)",
     )
     plt.plot(
-        10 ** line_p_s[:, 0] / 1e18,
+        10 ** line_p_s[:, 0] * eV_to_GeV,
         line_p_s[:, 1],
         color="b",
         ls="--",
         label="Sibyll 2.3d, proton",
     )
     plt.plot(
-        10 ** line_fe_s[:, 0] / 1e18,
+        10 ** line_fe_s[:, 0] * eV_to_GeV,
         line_fe_s[:, 1],
         color="g",
         ls="--",
         label="Sibyll 2.3d, iron",
     )
     plt.plot(
-        10 ** line_p_q[:, 0] / 1e18,
+        10 ** line_p_q[:, 0] * eV_to_GeV,
         line_p_q[:, 1],
         color="b",
         ls=":",
         label="QGSJet-II.04, proton",
     )
     plt.plot(
-        10 ** line_fe_q[:, 0] / 1e18,
+        10 ** line_fe_q[:, 0] * eV_to_GeV,
         line_fe_q[:, 1],
         color="g",
         ls=":",
@@ -685,7 +687,7 @@ def visualize_xmaxfits(
     )
     ax.set_xlabel(r"$E\,[\rm{EeV}]$")
     ax.set_ylabel(r"$\langle X_{\max} \rangle\,[\mathrm{g\,cm^{-2}}]$")
-    ax.set_xlim(1e15 / 1e18, 2e20 / 1e18)
+    ax.set_xlim(1e15 * eV_to_GeV, 2e20 * eV_to_GeV)
     ax.set_ylim(420, 900)
     plt.legend()
     plt.tight_layout()
@@ -713,7 +715,7 @@ def visualize_xmaxfits(
         sigma_p,
         xerr=xerr,
         yerr=sigma_err_p,
-        fmt="b-",
+        color='b',
         ls="",
         marker="o",
         capsize=4,
@@ -724,35 +726,35 @@ def visualize_xmaxfits(
         sigma_Fe,
         xerr=xerr,
         yerr=sigma_err_Fe,
-        fmt="g-",
+        color='g',
         ls="",
         marker="o",
         capsize=4,
         label="Iron (DC2 ZHAireS-AN)",
     )
     plt.plot(
-        10 ** sig_p_s[:, 0] / 1e18,
+        10 ** sig_p_s[:, 0] * eV_to_GeV,
         sig_p_s[:, 1],
         color="b",
         ls="--",
         label="Sibyll 2.3d, proton",
     )
     plt.plot(
-        10 ** sig_fe_s[:, 0] / 1e18,
+        10 ** sig_fe_s[:, 0] * eV_to_GeV,
         sig_fe_s[:, 1],
         color="g",
         ls="--",
         label="Sibyll 2.3d, iron",
     )
     plt.plot(
-        10 ** sig_p_q[:, 0] / 1e18,
+        10 ** sig_p_q[:, 0] * eV_to_GeV,
         sig_p_q[:, 1],
         color="b",
         ls=":",
         label="QGSJet-II.04, proton",
     )
     plt.plot(
-        10 ** sig_fe_q[:, 0] / 1e18,
+        10 ** sig_fe_q[:, 0] * eV_to_GeV,
         sig_fe_q[:, 1],
         color="g",
         ls=":",
@@ -760,7 +762,7 @@ def visualize_xmaxfits(
     )
     ax.set_xlabel(r"$E\,[\rm{EeV}]$")
     ax.set_ylabel(r"$\sigma(X_{\max})\,[\mathrm{g\,cm^{-2}}]$")
-    ax.set_xlim(1e15 / 1e18, 2e20 / 1e18)
+    ax.set_xlim(1e15 * eV_to_GeV, 2e20 * eV_to_GeV)
     ax.set_ylim(0, 100)
     plt.legend()
     plt.tight_layout()

@@ -48,7 +48,7 @@ python3 5-DC3EventEfieldInputGenerator/SimpleDC3ZHAireSEventEfieldInputGenerator
 
 ---
 
-# Physics Considerations
+# Physics Considerations still not included
 
 Key technical physics details across modules include:
 - **Earth curvature**: Spherical geometry chord integration for slant depth at high zenith angles ($>70^\circ$).

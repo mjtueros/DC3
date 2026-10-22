@@ -104,8 +104,8 @@ maxtheta = sec.getfloat("maxtheta", fallback=88.0)
 minphi = sec.getfloat("minphi", fallback=0.0)
 maxphi = sec.getfloat("maxphi", fallback=360.0)
 
-Emin = sec.getfloat("Emin", fallback=np.power(10.0, -1.5))
-Emax = sec.getfloat("Emax", fallback=np.power(10.0, 0.6))
+Emin = sec.getfloat("Emin", fallback=np.power(10.0, 7.5))
+Emax = sec.getfloat("Emax", fallback=np.power(10.0, 9.6))
 
 show_plots = sec.getboolean("show_plots", fallback=False)
 
@@ -113,14 +113,14 @@ print("#########################################################################
 print("Flux Generator Configuration")
 print("################################################################################")
 print(f"Config File:    {config_file}")
-print(f"Events (Nsims): {Nsims}")
+print(f"Number of Sims: {Nsims}")
 print(f"Output File:    {OutputFileName}")
 print(f"Library Prefix: {LibraryPrefix}")
 print(f"Models:         {ModelBins}")
 print(f"Primaries:      {PrimaryBins}")
 print(f"Zenith:         [{mintheta}, {maxtheta}] deg")
 print(f"Azimuth:        [{minphi}, {maxphi}] deg")
-print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] EeV")
+print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] GeV")
 print(f"Show Plots:     {show_plots}")
 print("################################################################################\n")
 
@@ -183,19 +183,23 @@ if show_plots:
 LogEmin = np.log10(Emin)
 LogEmax = np.log10(Emax)
 
-print("min Energy (EeV):" + str(Emin) + " -> log10 (Emin) " + str(LogEmin))
-print("max Energy (EeV):" + str(Emax) + " -> log10 (Emax) " + str(LogEmax))
+print("min Energy (GeV):" + str(Emin) + " -> log10 (Emin) " + str(LogEmin))
+print("max Energy (GeV):" + str(Emax) + " -> log10 (Emax) " + str(LogEmax))
 
 RandomLogEnergies = np.random.uniform(low=LogEmin, high=LogEmax, size=Nsims)
 RandomEnergies = np.power(10, RandomLogEnergies)
 
 if show_plots:
-    plt.hist(RandomLogEnergies, bins=21)
+    # EeV allowed for plotting purposes
+    RandomEnergies_EeV = RandomEnergies * 1.0e-9
+    RandomLogEnergies_EeV = np.log10(RandomEnergies_EeV)
+
+    plt.hist(RandomLogEnergies_EeV, bins=21)
     plt.xlabel('Log10(Energy [EeV])')
     plt.ylabel('Number of Sims')
     plt.show()
 
-    plt.hist(RandomEnergies, bins=21)
+    plt.hist(RandomEnergies_EeV, bins=21)
     plt.xlabel('Energy [EeV]')
     plt.ylabel('Number of Sims')
     plt.show()
@@ -224,56 +228,56 @@ conn = sqlite3.connect(OutputFileName)
 cursor = conn.cursor()
 
 cursor.execute("""
-    CREATE TABLE IF NOT EXISTS Events (
-        EventNumber INTEGER PRIMARY KEY,
-        EventName TEXT,
+    CREATE TABLE IF NOT EXISTS Showers (
+        ShowerNumber INTEGER PRIMARY KEY,
+        ShowerName TEXT,
         RandomSeed TEXT,
-        EventWeight REAL,
+        ShowerWeight REAL,
         PrimaryType TEXT,
-        Energy_EeV REAL,
+        Energy_GeV REAL,
         Zenith_Deg REAL,
         Azimuth_Deg REAL,
         Model TEXT
     )
 """)
 
-events_data = []
+showers_data = []
 
 for i in range(0, Nsims):
     RandomSeed = random.random()
-    EventWeight = 1.0 
+    ShowerWeight = 1.0 
 
     Energy = float(RandomEnergies[i])
     Zenith = float(RandomZeniths[i])
     Azimuth = float(RandomAzimuths[i])
     
     RandomSeed_str = f"{RandomSeed:.10f}"
-    Energystring = '{0:.3}'.format(Energy)
+    Energystring = '{0:.3}'.format(Energy/1e9)
     Zenithstring = '{0:.3}'.format(Zenith)
     Azimuthstring = '{0:.4}'.format(Azimuth)
     
     Primary = PrimaryBins[i % len(PrimaryBins)] 
     Model = ModelBins[i % len(ModelBins)] 
     
-    EventNumber = i
+    ShowerNumber = i+1
 
-    EventName = (LibraryPrefix + "_" + str(Model) + "_" + str(Primary) + "_" + 
-                 str(Energystring) + "_" + str(Zenithstring) + "_" + 
-                 str(Azimuthstring) + "_" + str(EventNumber))
+    ShowerName = (LibraryPrefix + "_" + Model + "_" + Primary + "_" + 
+                 Energystring + "_" + Zenithstring + "_" + 
+                 Azimuthstring + "_" + str(ShowerNumber))
 
-    events_data.append((
-        EventNumber, EventName, RandomSeed_str, EventWeight, 
+    showers_data.append((
+        ShowerNumber, ShowerName, RandomSeed_str, ShowerWeight, 
         Primary, Energy, Zenith, Azimuth, Model
     ))
 
 cursor.executemany("""
-    INSERT INTO Events (
-        EventNumber, EventName, RandomSeed, EventWeight, 
-        PrimaryType, Energy_EeV, Zenith_Deg, Azimuth_Deg, Model
+    INSERT INTO Showers (
+        ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
+        PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-""", events_data)
+""", showers_data)
 
 conn.commit()
 conn.close()
 
-print(f"Success! {Nsims} events written to {OutputFileName}")
+print(f"Success! {Nsims} showers written to {OutputFileName}")
