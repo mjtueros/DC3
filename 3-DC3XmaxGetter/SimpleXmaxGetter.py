@@ -239,7 +239,8 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             Model TEXT,
             Xmax_g_cm2 REAL,
             XmaxAltitude_km REAL,
-            XmaxDistance_km REAL
+            XmaxDistance_km REAL,
+            NaturalWeight REAL
         )
     """)
 
@@ -290,10 +291,12 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             raise ValueError(f"Unknown library type: {librarytype}")
             sys.exit(1)
             
+        # The FluxGenerator's NaturalWeight is copied; older flux databases have none (NULL)
+        natural_weight = row["NaturalWeight"] if "NaturalWeight" in columns else None
         showers_data.append((
             row["ShowerNumber"], row["ShowerName"], row["RandomSeed"], row["ShowerWeight"],
             row["PrimaryType"], energy_GeV, row["Zenith_Deg"], row["Azimuth_Deg"], 
-            row["Model"], xmax, alt, distance
+            row["Model"], xmax, alt, distance, natural_weight
         ))
 
         if n_showers % 100 == 0:
@@ -304,8 +307,8 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
         INSERT INTO Showers (
             ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
             PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model,
-            Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km, NaturalWeight
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, showers_data)
 
     conn_out.commit()

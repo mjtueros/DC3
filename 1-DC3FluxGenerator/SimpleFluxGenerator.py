@@ -27,6 +27,8 @@ import random
 
 # The plots of each section; PlotFluxFromDatabase.py makes the same plots from a saved database
 from FluxPlots import plot_flux_distributions
+# The weight that makes each shower represent the natural flux
+from NaturalWeights import natural_weights, SPECTRA, GEOMETRIES
 
 # ==============================================================================
 # HELPER FUNCTIONS
@@ -111,6 +113,15 @@ Emax = sec.getfloat("Emax", fallback=np.power(10.0, 9.6))
 
 show_plots = sec.getboolean("show_plots", fallback=False)
 
+natural_spectrum = sec.get("natural_spectrum", fallback="TALE2018").strip()
+natural_geometry = sec.get("natural_geometry", fallback="flat").strip()
+if natural_spectrum not in SPECTRA:
+    print(f"ERROR: Unknown natural_spectrum '{natural_spectrum}'. Use one of: {', '.join(SPECTRA)}.")
+    sys.exit(1)
+if natural_geometry not in GEOMETRIES:
+    print(f"ERROR: Unknown natural_geometry '{natural_geometry}'. Use one of: {', '.join(GEOMETRIES)}.")
+    sys.exit(1)
+
 print("################################################################################")
 print("Flux Generator Configuration")
 print("################################################################################")
@@ -124,6 +135,7 @@ print(f"Zenith:         [{mintheta}, {maxtheta}] deg")
 print(f"Azimuth:        [{minphi}, {maxphi}] deg")
 print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] GeV")
 print(f"Show Plots:     {show_plots}")
+print(f"Natural Flux:   {natural_spectrum} spectrum, {natural_geometry} geometry")
 print("################################################################################\n")
 
 pause_for_review(5.0)
@@ -183,6 +195,14 @@ if show_plots:
     sys.stdin.readline()
 
 # ==============================================================================
+# Natural Weights
+# ==============================================================================
+# Expected number of showers like each one per km^2 per year in nature (NaturalWeights.py)
+ShowerNaturalWeights = natural_weights(RandomEnergies, RandomZeniths, Nsims, Emin, Emax,
+                                       mintheta, maxtheta, minphi, maxphi,
+                                       natural_spectrum, natural_geometry)
+
+# ==============================================================================
 # Output Database
 # ==============================================================================
 out_dir = os.path.dirname(OutputFileName)
@@ -211,7 +231,8 @@ cursor.execute("""
         Energy_GeV REAL,
         Zenith_Deg REAL,
         Azimuth_Deg REAL,
-        Model TEXT
+        Model TEXT,
+        NaturalWeight REAL
     )
 """)
 
@@ -241,14 +262,14 @@ for i in range(0, Nsims):
 
     showers_data.append((
         ShowerNumber, ShowerName, RandomSeed_str, ShowerWeight, 
-        Primary, Energy, Zenith, Azimuth, Model
+        Primary, Energy, Zenith, Azimuth, Model, float(ShowerNaturalWeights[i])
     ))
 
 cursor.executemany("""
     INSERT INTO Showers (
         ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
-        PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model, NaturalWeight
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """, showers_data)
 
 conn.commit()
