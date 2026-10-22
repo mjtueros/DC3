@@ -117,21 +117,27 @@ def init_database(db_path):
     c = conn.cursor()
     c.executescript("""
         CREATE TABLE IF NOT EXISTS Events (
+
             EventID INTEGER PRIMARY KEY AUTOINCREMENT,
             EventName TEXT,
             ShowerName TEXT,
+            ShowerWeight REAL,
             PrimaryType TEXT,
             Energy_GeV REAL,
-            Zenith REAL,
-            Azimuth REAL,
+            Zenith_Deg REAL,
+            Azimuth_Deg REAL,
+            Model TEXT,
+            RandomSeed TEXT,            
+            Xmax_g_cm2 REAL,
+            XmaxAltitude_km REAL,
+            XmaxDistance_km REAL,
             Core_N REAL,
             Core_W REAL,
             Core_U REAL,
             Xmax_N REAL,
             Xmax_W REAL,
             Xmax_U REAL,
-            Weight REAL,
-            RandomSeed TEXT,
+            EventWeight REAL,
             Tries INTEGER
         );
         CREATE TABLE IF NOT EXISTS TriggeredAntennas (
@@ -324,7 +330,7 @@ def main():
         azimuth = float(row['Azimuth_Deg'])
         energy_GeV = float(row['Energy_GeV']) 
         original_weight = float(row['ShowerWeight'])
-        
+                    
         theta_rad = np.radians(zenith)
         phi_rad = np.radians(azimuth)
         k_vector = np.array([
@@ -376,13 +382,14 @@ def main():
                 unique_event_name = f"{row['ShowerName']}_r{reuse_idx}"
                 
                 cursor.execute("""
-                    INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
-                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO Events (EventName, ShowerName, ShowerWeight, PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, 
+                                        Model, RandomSeed, Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km, 
+                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, EventWeight, Tries)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    unique_event_name, row['ShowerName'], row['PrimaryType'], energy_GeV, zenith, azimuth,
-                    core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
-                    new_weight, row['RandomSeed'], try_idx
+                    unique_event_name,  row['ShowerName'], row['ShowerWeight'], row['PrimaryType'], energy_GeV, zenith, azimuth,
+                    row['Model'],row['RandomSeed'],row['Xmax_g_cm2'],row['XmaxAltitude_km'],row['XmaxDistance_km'],
+                    core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],new_weight, try_idx
                 ))
                 event_id = cursor.lastrowid
                 

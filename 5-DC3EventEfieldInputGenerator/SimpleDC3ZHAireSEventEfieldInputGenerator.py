@@ -43,7 +43,7 @@ except ImportError as e:
 # ==============================================================================
 # VALIDATION HELPER
 # ==============================================================================
-def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy_GeV, db_zenith, db_azimuth):
+def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy_GeV, db_zenith, db_azimuth, db_xmax_distance):
     """
     Looks for the .sry file of the original event and validates the parameters.
     db_energy_GeV is expected in GeV.
@@ -63,16 +63,16 @@ def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy_GeV
     sry_file = sry_files[0]
     
     # Read SRY using the GRAND outmode (so Zenith/Azimuth match our DB conventions)
-    sry_zen, sry_azim, sry_energy, sry_primary, _, _, _ = AiresInfo.ReadAiresSry(sry_file, outmode="GRAND")
+    sry_zen, sry_azim, sry_energy_GeV, sry_primary, sry_xmax, sry_xmax_distance, sry_taskname = AiresInfo.ReadAiresSry(sry_file, outmode="Aires")
     
-    # In GRAND mode, AiresInfo.ReadAiresSry returns energy in EeV. Convert to GeV:
-    sry_energy_GeV = sry_energy * 1.0e9
+    #Translate Aires way of saying Iron.
+    if str(sry_primary).strip() == "Fe^56":
+        sry_primary = "Iron"    
 
     # Check Primary
     if str(sry_primary).strip().lower() != str(db_primary).strip().lower():
-        if str(db_primary) != "2212" and str(db_primary) != "Proton":
-            print(f"  [Mismatch] Primary: DB='{db_primary}', SRY='{sry_primary}'")
-            return False
+        print(f"  [Mismatch] Primary: DB='{db_primary}', SRY='{sry_primary}'")
+        return False
 
     # Check Floats with relative tolerance of 1%
     if not math.isclose(sry_energy_GeV, db_energy_GeV, rel_tol=1e-2):
@@ -86,6 +86,12 @@ def validate_against_sry(sry_dir, original_event_name, db_primary, db_energy_GeV
     if not math.isclose(sry_azim, db_azimuth, rel_tol=1e-2):
         print(f"  [Mismatch] Azimuth: DB={db_azimuth:.2f} deg, SRY={sry_azim:.2f} deg")
         return False
+
+    if not math.isclose(sry_xmax_distance, db_xmax_distance, rel_tol=1e-2):
+        print(f"  [Mismatch] Xmax Distance: DB={db_xmax_distance:.2f} deg, SRY={sry_xmax_distance:.2f} deg")
+        return False
+
+
 
     return True
 
@@ -215,10 +221,10 @@ def main():
     # Query all events that triggered
 
     cursor.execute(f"""
-        SELECT EventID, EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
-               Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, RandomSeed, Weight
+        SELECT EventID, EventName, ShowerName, PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, 
+               Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, XmaxDistance_km, RandomSeed, EventWeight
         FROM Events
-        WHERE Weight > 0
+        WHERE EventWeight > 0
     """)
     events = cursor.fetchall()
     
@@ -228,10 +234,10 @@ def main():
     n_failed = 0
 
     for row in events:
-        (event_id, event_name, shower_name, primary, energy_val, zenith, azimuth, 
-         core_n, core_w, core_u, xmax_n, xmax_w, xmax_u, random_seed, weight) = row
+        (event_id, event_name, shower_name, primary, energy, zenith, azimuth, 
+         core_n, core_w, core_u, xmax_n, xmax_w, xmax_u, xmaxdist_km, random_seed, weight) = row
         
-        energy_GeV = float(energy_val)
+        energy_GeV = float(energy)
         task_name = f"{event_name}"
         out_inp_path = os.path.join(out_dir, f"{task_name}.inp")
         
@@ -239,16 +245,11 @@ def main():
 
         # 3. OPTIONAL VALIDATION
         if sry_dir:
-            is_valid = validate_against_sry(sry_dir, shower_name, primary, energy_GeV, zenith, azimuth)
+            is_valid = validate_against_sry(sry_dir, shower_name, primary, energy_GeV, zenith, azimuth, xmaxdist_km)
             if not is_valid:
                 print(f"  [Failed] Skipping {task_name} due to .sry metadata mismatch.")
                 n_failed += 1
                 continue
-
-        # 4. CALCULATE XMAX GEOMETRY
-        core_pos = np.array([core_n, core_w, core_u])
-        xmax_pos = np.array([xmax_n, xmax_w, xmax_u])
-        xmax_dist_m = np.linalg.norm(xmax_pos - core_pos)
 
         # 5. WRITE CUSTOM HEADER COMMENTS
         with open(out_inp_path, "w") as f:
@@ -259,7 +260,7 @@ def main():
             f.write(f"# EventWeight       : {weight:.6e}\n")
             f.write(f"# CorePosition_NWU  : {core_n:.2f} {core_w:.2f} {core_u:.2f}\n")
             f.write(f"# XmaxPosition_NWU  : {xmax_n:.2f} {xmax_w:.2f} {xmax_u:.2f}\n")
-            f.write(f"# XmaxDistance_m    : {xmax_dist_m:.2f}\n")
+            f.write(f"# XmaxDistance_km   : {xmaxdist_km:.2f}\n")
             f.write("################################################################################\n")
 
         # 6. WRITE AIRES HEADER
@@ -280,8 +281,8 @@ def main():
             AiresInp.CreateAiresAntennaListInp(ant_positions, out_inp_path, 
                                                AntennaNames=ant_names, 
                                                AntennaSelection=numeric_selection)
-            
-            AiresInp.CreateTimeWindowInp(xmax_dist_m, out_inp_path, Tmin=-250, Tmax=1000-250)
+            #requires input in meters
+            AiresInp.CreateTimeWindowInp(xmaxdist_km*1000.0, out_inp_path, Tmin=-250, Tmax=1000-250)
         else:
             print(f"  [Failed] No antennas found for Event {event_id}. Skipping.")
             n_failed += 1

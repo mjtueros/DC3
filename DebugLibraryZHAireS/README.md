@@ -20,6 +20,9 @@ python ../2-DC3ShowerInputGenerator/SimpleAiresShowerInputGenerator.py DEBUG_dc3
 
 python ../3-DC3XmaxGetter/SimpleXmaxGetter.py DEBUG_dc3_config_ZHAireS.ini 
 
+python ../4-DC3EventGenerator/SimpleDC3EventGenerator.py DEBUG_dc3_config_ZHAireS.ini
+
+python ../5-DC3EventEfieldInputGenerator/SimpleDC3ZHAireSEventEfieldInputGenerator.py DEBUG_dc3_config_ZHAireS.ini
 
 
 To regenerate the Showers and their input files, you will have to have ZHAireS properly installed in your system, of course.
