@@ -30,11 +30,30 @@ python3 4-DC3EventGenerator/SimpleEventViewer.py Example_dc3_config.ini
 
 ## Configuration
 
-All configurable parameters (input database, antenna CSV layout, hexagon dimensions, Cherenkov cone angle, trigger criteria, max drop attempts, event reuse factor, distance filters, and dry-run mode) are specified and explained under the `[EventGenerator]` section of the `.ini` file.
+All configurable parameters (input database, antenna CSV layout, hexagon dimensions, Cherenkov cone angle, trigger criteria, cores tested per shower, shower reuse factor, distance filters, and dry-run mode) are specified and explained under the `[EventGenerator]` section of the `.ini` file.
+
+## Trigger Probability and Weights
+
+For every shower, and every reuse of it, the generator tests `cores_per_event` core positions drawn uniformly in the hexagon and counts how many of them trigger (`min_trigger` antennas or more). It keeps the first core that triggered: the cores are drawn uniformly, so it is a uniform draw from the area where that shower triggers, as real cores would be.
+
+- The fraction of tested cores that trigger, `Triggers / cores_per_event`, is an unbiased estimate of the shower's trigger probability. (Stopping at the first trigger and using 1/tries, as before, is not: on average 1/tries is larger than the probability, by a factor that grows as the probability falls.)
+- `Weight` = `ShowerWeight` × `Triggers / cores_per_event` / `reuse`.
+- `NaturalRate_per_yr` = `NaturalWeight` × hexagon area × `Triggers / cores_per_event` / `reuse`: the number of triggered events per year that the event stands for in nature. Summed over all events, it gives the natural rate of triggered events in the hexagon, which the generator prints at the end. It is empty when the input database has no `NaturalWeight`, e.g. one rebuilt from a library. It needs natural weights per km² of ground, `natural_geometry = flat` in the FluxGenerator (the default): `sphere` weights are per km² across the shower, and would give a rate 1/cos(zenith) times too high.
+- An event that never triggers is kept with `Weight` 0 and the last core tested.
+
+`cores_per_event` sets the precision: with 500 cores, a trigger probability of 0.1 is known to ±0.013.
+
+Every tested core is kept in `TestedCores`, with whether it triggered. Since every shower tests the same number of cores, the fraction of tested cores that trigger in a bin of direction, energy or core position is the average trigger probability of the showers in that bin. For example, per 5° of zenith:
+
+```sql
+SELECT CAST(e.Zenith / 5 AS INTEGER) * 5 AS ZenithBin, AVG(t.Triggered) AS TriggerProbability, COUNT(*) AS TestedCores
+FROM TestedCores t JOIN Events e ON e.EventID = t.EventID
+GROUP BY ZenithBin;
+```
 
 ## Output Database Schema
 
 The generated SQLite file contains three tables:
-- **`Events`**: Primary particle, energy, arrival direction, core coordinates, $X_{\max}$ coordinates, drop attempts, and renormalized event weight.
+- **`Events`**: Event and shower names, primary particle, energy, arrival direction, core coordinates, $X_{\max}$ coordinates, cores tested (`Tries`) and those that triggered (`Triggers`), event weight (`Weight`) and natural rate of triggered events (`NaturalRate_per_yr`).
 - **`TriggeredAntennas`**: Tagged antenna identifiers, relative core-to-antenna coordinates, and mock signal amplitudes.
-- **`TestedCores`**: Coordinates of all candidate core positions tested during the trial.
+- **`TestedCores`**: Coordinates of every core position tested, and whether it triggered (`Triggered`, 1 or 0).

@@ -7,14 +7,17 @@ def view_events_interactively(db_path):
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
 
-    # 2. Query only events that successfully triggered (Weight > 0)
-    # We also grab the final Core_N and Core_W to highlight them
-    cursor.execute("PRAGMA table_info(Events)")
-    columns = [col[1] for col in cursor.fetchall()]
-    energy_col = "Energy_GeV"
+    # Databases written before every shower tested the same number of cores have no Triggers column
+    columns = [r[1] for r in cursor.execute("PRAGMA table_info(Events)")]
+    if "Triggers" not in columns:
+        print(f"ERROR: '{db_path}' was written by an older EventGenerator (no Triggers column). Run the EventGenerator again to view its events.")
+        conn.close()
+        return
 
-    cursor.execute(f"""
-        SELECT EventID, EventName, ShowerName, PrimaryType, {energy_col}, Zenith, Tries, Core_N, Core_W 
+    # 2. Query only events that successfully triggered (Weight > 0)
+    # We also grab the kept Core_N and Core_W to highlight them
+    cursor.execute("""
+        SELECT EventID, EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Tries, Triggers, Core_N, Core_W
         FROM Events 
         WHERE Weight > 0
     """)
@@ -29,30 +32,34 @@ def view_events_interactively(db_path):
 
     # 4. Cycle through the events
     for i, event_row in enumerate(triggered_events):
-        ev_id, ev_name, shower_name, primary, energy_val, zenith, tries, final_core_n, final_core_w = event_row
+        ev_id, ev_name, shower_name, primary, energy_val, zenith, tries, triggers, final_core_n, final_core_w = event_row
         energy_GeV = float(energy_val)  
         energy_EeV = energy_GeV * 1.0e-9
         
-        # Fetch all tested cores for this specific event
-        cursor.execute("SELECT Core_N, Core_W FROM TestedCores WHERE EventID = ?", (ev_id,))
+        # Fetch all tested cores for this specific event, with whether each one triggered
+        cursor.execute("SELECT Core_N, Core_W, Triggered FROM TestedCores WHERE EventID = ?", (ev_id,))
         tested_cores = cursor.fetchall()
         
-        # Unzip coordinates for plotting (or return empty lists if somehow none exist)
-        test_n, test_w = zip(*tested_cores) if tested_cores else ([], [])
+        # Unzip coordinates for plotting (or return empty lists if none exist)
+        missed = [(n, w) for n, w, hit in tested_cores if not hit]
+        hits = [(n, w) for n, w, hit in tested_cores if hit]
+        miss_n, miss_w = zip(*missed) if missed else ([], [])
+        hit_n, hit_w = zip(*hits) if hits else ([], [])
 
         # Clear the plot from the previous event
         ax.clear()
         
-        # Plot all tested cores in grey
-        ax.scatter(test_n, test_w, c='gray', s=15, alpha=0.5, label='Tested Cores')
+        # Plot the tested cores: grey if they did not trigger, blue if they did
+        ax.scatter(miss_n, miss_w, c='gray', s=15, alpha=0.5, label='Tested Cores')
+        ax.scatter(hit_n, hit_w, c='tab:blue', s=15, alpha=0.7, label='Tested Cores that Triggered')
         
-        # Highlight the successfully triggered core with a big red star
+        # Highlight the kept core (the first that triggered) with a big red star
         ax.scatter([final_core_n], [final_core_w], c='red', s=200, marker='*', 
-                   edgecolors='black', label='Triggered Core')
+                   edgecolors='black', label='Kept Core')
         
         # Format the plot
         ax.set_title(f"Event {i+1}/{len(triggered_events)}: {ev_name}\n"
-                     f"({primary}, {energy_EeV:.2f} EeV, Zenith: {zenith:.1f}°) | Drops to trigger: {tries}")
+                     f"({primary}, {energy_EeV:.2f} EeV, Zenith: {zenith:.1f}°) | Triggered: {triggers} of {tries} cores")
         ax.set_xlabel("Northing (m)")
         ax.set_ylabel("Westing (m)")
         ax.axis('equal') # Keeps the physical geometry square

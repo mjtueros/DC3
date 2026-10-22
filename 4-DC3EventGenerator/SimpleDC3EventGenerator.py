@@ -132,7 +132,9 @@ def init_database(db_path):
             Xmax_U REAL,
             Weight REAL,
             RandomSeed TEXT,
-            Tries INTEGER
+            Tries INTEGER,
+            Triggers INTEGER,
+            NaturalRate_per_yr REAL
         );
         CREATE TABLE IF NOT EXISTS TriggeredAntennas (
             EventID INTEGER,
@@ -147,6 +149,7 @@ def init_database(db_path):
             EventID INTEGER,
             Core_N REAL,
             Core_W REAL,
+            Triggered INTEGER,
             FOREIGN KEY(EventID) REFERENCES Events(EventID)
         );
         CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
@@ -232,8 +235,16 @@ def main():
     hex_size = sec.getfloat("hex_size", fallback=7000.0)
     cone_angle = sec.getfloat("cone_angle", fallback=1.0)
     min_trigger = sec.getint("min_trigger", fallback=3)
-    max_tries = sec.getint("max_tries", fallback=500)
+    # Every shower tests the same number of core positions, so that the fraction that triggers is an unbiased
+    # estimate of its trigger probability (issue #47). max_tries, which stopped at the first trigger, is gone.
+    if "max_tries" in sec:
+        print("ERROR: max_tries is no longer used. Set cores_per_event in the [EventGenerator] section instead: the number of core positions tested for every shower.")
+        sys.exit(1)
+    cores_per_event = sec.getint("cores_per_event", fallback=500)
     reuse = sec.getint("reuse", fallback=1)
+    if cores_per_event < 1 or reuse < 1:
+        print("ERROR: cores_per_event and reuse must be at least 1.")
+        sys.exit(1)
     
     dist_min = sec.getfloat("dist_min", fallback=0.0)
     dist_max = sec.getfloat("dist_max", fallback=1000.0)
@@ -251,7 +262,7 @@ def main():
     print(f"Hexagon Size:    {hex_size} m")
     print(f"Cone Angle:      {cone_angle} deg")
     print(f"Min Trigger:     {min_trigger} antennas")
-    print(f"Max Tries:       {max_tries}")
+    print(f"Cores per Event: {cores_per_event}")
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
@@ -298,8 +309,16 @@ def main():
 
     print(f"Processing showers from {showers_db} (Reuse factor: {reuse})...")
     center_pos = np.array([center_n, center_w, center_u])
+    # Area of the hexagon the cores are drawn in (km^2). A natural weight (showers per km^2 of ground per year, the
+    # FluxGenerator's natural_geometry = flat) times this area and the trigger probability gives the triggered events
+    # per year that an event stands for. A sphere weight is per km^2 across the shower: 1/cos(zenith) times larger.
+    hex_area_km2 = 1.5 * math.sqrt(3.0) * (hex_size / 1000.0) ** 2
     
     success_count = 0
+    event_count = 0
+    skipped_count = 0
+    natural_count = 0
+    natural_rate_total = 0.0
     
     # Read showers from the SQLite database
     conn_in = sqlite3.connect(showers_db)
@@ -309,10 +328,12 @@ def main():
     
     for i, row in enumerate(cursor_in.fetchall()):
         if row['XmaxDistance_km'] is None:
+            skipped_count += 1
             continue
             
         xmax_dist_km = float(row['XmaxDistance_km'])
         if not (dist_min <= xmax_dist_km <= dist_max):
+            skipped_count += 1
             continue
 
         # Read parameters directly (Assuming GRAND coords already)
@@ -320,6 +341,8 @@ def main():
         azimuth = float(row['Azimuth_Deg'])
         energy_GeV = float(row['Energy_GeV']) 
         original_weight = float(row['ShowerWeight'])
+        # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
+        natural_weight = row['NaturalWeight'] if 'NaturalWeight' in row.keys() else None
         
         theta_rad = np.radians(zenith)
         phi_rad = np.radians(azimuth)
@@ -331,8 +354,9 @@ def main():
 
         # EVENT REUSE LOOP
         for reuse_idx in range(reuse):
-            triggered = False
             tested_cores = []
+            n_triggers = 0
+            first_trigger = None
             
             # Dry run stats (Input)
             if dry_run:
@@ -340,28 +364,46 @@ def main():
                 in_egy.append(energy_GeV)
                 in_wgt.append(original_weight)
             
-            for try_idx in range(1, max_tries + 1):
-                core_pos = rand_in_hex(center_pos, hex_size)
-                tested_cores.append(core_pos)
+            # Test cores_per_event core positions, without stopping at the first trigger (issue #47)
+            for _ in range(cores_per_event):
+                core_try = rand_in_hex(center_pos, hex_size)
                 # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
                 # Core and antennas are both in the site CS, so Xmax is too.
-                xmax_pos = core_pos + (xmax_dist_km * 1000.0 * k_vector)
-                trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
+                xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
+                trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
                 
-                if len(trig_idx) >= min_trigger:
-                    triggered = True
-                    break
+                hit = len(trig_try) >= min_trigger
+                tested_cores.append((core_try, hit))
+                if hit:
+                    n_triggers += 1
+                    if first_trigger is None:
+                        first_trigger = (core_try, xmax_try, trig_try, amp_try)
 
-            # Handle Weights & Failed Triggers
+            # Keep the first core that triggered: the cores are drawn uniformly, so it is a uniform draw from the
+            # area where this shower triggers, as in nature. Without a trigger, keep the last core tested.
+            triggered = first_trigger is not None
             if triggered:
-                new_weight = original_weight * (1.0 / try_idx)
+                core_pos, xmax_pos, trig_idx, amplitudes = first_trigger
                 success_count += 1
             else:
-                new_weight = 0.0 # Failed to trigger
+                core_pos, xmax_pos = core_try, xmax_try
+
+            # Handle Weights & Failed Triggers
+            # The fraction of tested cores that trigger is an unbiased estimate of the trigger probability
+            # (1/tries, used before, overestimated it). A reused shower shares its weight among its reuses.
+            trigger_fraction = n_triggers / cores_per_event
+            new_weight = original_weight * trigger_fraction / reuse
+            event_count += 1
+            if natural_weight is None:
+                natural_rate = None
+            else:
+                natural_rate = float(natural_weight) * hex_area_km2 * trigger_fraction / reuse
+                natural_count += 1
+                natural_rate_total += natural_rate
 
             # If dry run, save data for plots
             if dry_run:
-                plot_all_cores.extend(tested_cores)
+                plot_all_cores.extend(c for c, _ in tested_cores)
                 if triggered:
                     plot_triggered_cores.append(core_pos)
                     out_zen.append(zenith)
@@ -374,12 +416,13 @@ def main():
                 
                 cursor.execute("""
                     INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
-                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries,
+                                        Triggers, NaturalRate_per_yr)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     unique_event_name, row['ShowerName'], row['PrimaryType'], energy_GeV, zenith, azimuth,
                     core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
-                    new_weight, row['RandomSeed'], try_idx
+                    new_weight, row['RandomSeed'], cores_per_event, n_triggers, natural_rate
                 ))
                 event_id = cursor.lastrowid
                 
@@ -395,14 +438,26 @@ def main():
                         INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_N, Rel_W, Rel_U, Amplitude)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, ant_inserts)
-                    print(f"Event {unique_event_name} triggered on try {try_idx} with {len(trig_idx)} antennas.")
+                    print(f"Event {unique_event_name}: {n_triggers} of {cores_per_event} cores triggered; the kept core has {len(trig_idx)} antennas.")
                 
-                # Always save tested cores
-                core_inserts = [(event_id, c[0], c[1]) for c in tested_cores]
-                cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W) VALUES (?, ?, ?)", core_inserts)
+                # Always save tested cores, each with whether it triggered
+                core_inserts = [(event_id, c[0], c[1], int(hit)) for c, hit in tested_cores]
+                cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W, Triggered) VALUES (?, ?, ?, ?)", core_inserts)
                 conn.commit()
                 
     conn_in.close()
+
+    print(f"\n{success_count} of {event_count} events triggered ({cores_per_event} cores tested per shower).")
+    if skipped_count:
+        print(f"{skipped_count} showers were skipped (no Xmax distance, or outside dist_min to dist_max): they are not in the database or in the natural rate.")
+    if event_count == 0:
+        print("No event was simulated, so there is no natural rate.")
+    elif natural_count == event_count:
+        print(f"Natural rate of triggered events: {natural_rate_total:.6g} per year (sum of NaturalRate_per_yr).")
+    elif natural_count == 0:
+        print("The input database has no NaturalWeight, so NaturalRate_per_yr is left empty.")
+    else:
+        print(f"NaturalWeight is empty for {event_count - natural_count} of the {event_count} events, so their NaturalRate_per_yr is empty.")
 
     # 4. WRAP UP & PLOTTING
     if dry_run:
@@ -419,7 +474,7 @@ def main():
             
         plt.xlabel("Northing (m)")
         plt.ylabel("Westing (m)")
-        plt.title(f"Dry Run (Cone: {cone_angle}°): {len(plot_trig)} Triggers / {len(plot_all)} Drops")
+        plt.title(f"Dry Run (Cone: {cone_angle}°): {len(plot_trig)} Triggered Events / {len(plot_all)} Tested Cores")
         plt.legend()
         plt.axis('equal')
         plt.grid(True, linestyle="--", alpha=0.6)
