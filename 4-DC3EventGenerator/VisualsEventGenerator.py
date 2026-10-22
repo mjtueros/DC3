@@ -612,8 +612,8 @@ def visualize_xmaxfits(
         plt.bar(
             bin_centers, hist_Fe_pdf, width=bin_width, alpha=0.5, label="Fe", color="C2"
         )
-        plt.plot(x_fit_p, y_fit_p, ls="-", color='C0', lw=2)
-        plt.plot(x_fit_Fe, y_fit_Fe, ls="-", color='C2', lw=2)
+        plt.plot(x_fit_p, y_fit_p, ls="-", color="C0", lw=2)
+        plt.plot(x_fit_Fe, y_fit_Fe, ls="-", color="C2", lw=2)
         plt.title(f"Xmax for {E_hist[1][i]:.1f} ≤ log10E < {E_hist[1][i+1]:.1f}")
         plt.xlabel(r"$X_{\rm max} \, (\rm g/cm^2)$")
         plt.ylabel("Normalized PDF")
@@ -640,7 +640,7 @@ def visualize_xmaxfits(
         mu_p,
         xerr=xerr,
         yerr=mu_err_p,
-        color='b',
+        color="b",
         ls="",
         marker="o",
         capsize=4,
@@ -651,7 +651,7 @@ def visualize_xmaxfits(
         mu_Fe,
         xerr=xerr,
         yerr=mu_err_Fe,
-        color='g',
+        color="g",
         ls="",
         marker="o",
         capsize=4,
@@ -715,7 +715,7 @@ def visualize_xmaxfits(
         sigma_p,
         xerr=xerr,
         yerr=sigma_err_p,
-        color='b',
+        color="b",
         ls="",
         marker="o",
         capsize=4,
@@ -726,7 +726,7 @@ def visualize_xmaxfits(
         sigma_Fe,
         xerr=xerr,
         yerr=sigma_err_Fe,
-        color='g',
+        color="g",
         ls="",
         marker="o",
         capsize=4,

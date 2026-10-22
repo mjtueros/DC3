@@ -6,13 +6,10 @@ import select
 import sqlite3
 import sys
 import time
+
 import numpy as np
-from VisualsEventGenerator import (
-    visualize_cores,
-    visualize_distributions,
-    visualize_xmax,
-    visualize_xmaxfits,
-)
+from VisualsEventGenerator import (visualize_cores, visualize_distributions,
+                                   visualize_xmax, visualize_xmaxfits)
 
 
 # ==============================================================================
@@ -52,7 +49,7 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
 
     # 2. XMAX TO ANTENNA VECTORS
     # u_ant is the unit vector pointing from Xmax to the antenna position
-    u_ant =  xmax - ant_pos
+    u_ant = xmax - ant_pos
     # dist is the distance from Xmax to the antenna position
     dist = np.linalg.norm(u_ant, axis=1)
     # Normalize
@@ -230,10 +227,19 @@ def main():
 
     sec = config["EventGenerator"]
 
-    showers_db = resolve_ini_path(config_file, sec.get("showers_db", fallback="ExampleFluxWithXmax.sqlite"))
-    antennas_csv = resolve_ini_path(config_file, sec.get("antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"))
-    out_db = resolve_ini_path(config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite"))
-    
+    showers_db = resolve_ini_path(
+        config_file, sec.get("showers_db", fallback="ExampleFluxWithXmax.sqlite")
+    )
+    antennas_csv = resolve_ini_path(
+        config_file,
+        sec.get(
+            "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"
+        ),
+    )
+    out_db = resolve_ini_path(
+        config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite")
+    )
+
     center_n = sec.getfloat("center_n", fallback=0.0)
     center_w = sec.getfloat("center_w", fallback=0.0)
     center_u = sec.getfloat("center_u", fallback=1250.0)
@@ -266,7 +272,9 @@ def main():
     print("#########################################################")
 
     if not os.path.isfile(showers_db):
-        print(f"ERROR: Input showers database file not found: '{showers_db}' (resolved relative to config file).")
+        print(
+            f"ERROR: Input showers database file not found: '{showers_db}' (resolved relative to config file)."
+        )
         sys.exit(1)
 
     if not os.path.isfile(antennas_csv):
@@ -287,8 +295,14 @@ def main():
     with open(antennas_csv, mode="r") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            ant_ids.append(row['ID'])
-            ant_pos_list.append([float(row['CS_X_North_m']), float(row['CS_Y_West_m']), float(row['CS_Z_Height_m'])])
+            ant_ids.append(row["ID"])
+            ant_pos_list.append(
+                [
+                    float(row["CS_X_North_m"]),
+                    float(row["CS_Y_West_m"]),
+                    float(row["CS_Z_Height_m"]),
+                ]
+            )
     ant_pos = np.array(ant_pos_list)
 
     # 2. INIT DATABASE
@@ -308,15 +322,15 @@ def main():
 
     print(f"Processing showers from {showers_db} (Reuse factor: {reuse})...")
     center_pos = np.array([center_n, center_w, center_u])
-    
+
     success_count = 0
-    
+
     # Read showers from the SQLite database
     conn_in = sqlite3.connect(showers_db)
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
     cursor_in.execute("SELECT * FROM Showers")
-    
+
     for i, row in enumerate(cursor_in.fetchall()):
         if row["XmaxDistance_km"] is None:
             continue
@@ -327,11 +341,11 @@ def main():
             continue
 
         # Read parameters directly (Assuming GRAND coords already)
-        zenith = float(row['Zenith_Deg'])
-        azimuth = float(row['Azimuth_Deg'])
-        energy_GeV = float(row['Energy_GeV']) 
-        original_weight = float(row['ShowerWeight'])
-        primary = str(row['PrimaryType'])
+        zenith = float(row["Zenith_Deg"])
+        azimuth = float(row["Azimuth_Deg"])
+        energy_GeV = float(row["Energy_GeV"])
+        original_weight = float(row["ShowerWeight"])
+        primary = str(row["PrimaryType"])
 
         theta_rad = np.radians(zenith)
         phi_rad = np.radians(azimuth)
@@ -360,10 +374,12 @@ def main():
                 core_pos = rand_in_hex(center_pos, hex_size)
                 tested_cores.append(core_pos)
 
-                #xmax_dist*kvector gives the xmax position from the core, minus the core to move to the cite CS
+                # xmax_dist*kvector gives the xmax position from the core, minus the core to move to the cite CS
                 xmax_pos = (xmax_dist_km * 1000.0 * k_vector) - core_pos
-                trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
-                
+                trig_idx, amplitudes = select_cone(
+                    xmax_pos, zenith, azimuth, ant_pos, cone_angle
+                )
+
                 if len(trig_idx) >= min_trigger:
                     triggered = True
                     break
@@ -390,27 +406,52 @@ def main():
             # Save to Database
             if not dry_run:
                 unique_event_name = f"{row['ShowerName']}_r{reuse_idx}"
-                
-                cursor.execute("""
+
+                cursor.execute(
+                    """
                     INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
                                         Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    unique_event_name, row['ShowerName'], row['PrimaryType'], energy_GeV, zenith, azimuth,
-                    core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
-                    new_weight, row['RandomSeed'], try_idx
-                ))
+                """,
+                    (
+                        unique_event_name,
+                        row["ShowerName"],
+                        row["PrimaryType"],
+                        energy_GeV,
+                        zenith,
+                        azimuth,
+                        core_pos[0],
+                        core_pos[1],
+                        core_pos[2],
+                        xmax_pos[0],
+                        xmax_pos[1],
+                        xmax_pos[2],
+                        new_weight,
+                        row["RandomSeed"],
+                        try_idx,
+                    ),
+                )
                 event_id = cursor.lastrowid
 
                 # Only insert antennas if it actually triggered
                 if triggered:
                     ant_inserts = []
                     for idx, amp in zip(trig_idx, amplitudes):
-                        #ant_pos is in site CS, and core_pos is in site CS too, so the difference is the relative position
+                        # ant_pos is in site CS, and core_pos is in site CS too, so the difference is the relative position
                         rel_pos = ant_pos[idx] - core_pos
-                        ant_inserts.append((event_id, ant_ids[idx], rel_pos[0], rel_pos[1], rel_pos[2], amp))
-                        
-                    cursor.executemany("""
+                        ant_inserts.append(
+                            (
+                                event_id,
+                                ant_ids[idx],
+                                rel_pos[0],
+                                rel_pos[1],
+                                rel_pos[2],
+                                amp,
+                            )
+                        )
+
+                    cursor.executemany(
+                        """
                         INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_N, Rel_W, Rel_U, Amplitude)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """,
@@ -422,7 +463,10 @@ def main():
 
                 # Always save tested cores
                 core_inserts = [(event_id, c[0], c[1]) for c in tested_cores]
-                cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W) VALUES (?, ?, ?)", core_inserts)
+                cursor.executemany(
+                    "INSERT INTO TestedCores (EventID, Core_N, Core_W) VALUES (?, ?, ?)",
+                    core_inserts,
+                )
                 conn.commit()
 
     conn_in.close()
