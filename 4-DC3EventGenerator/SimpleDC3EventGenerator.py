@@ -240,6 +240,9 @@ def main():
     
     dry_run = sec.getboolean("dry_run", fallback=False)
 
+    EventSeed = sec.getfloat("EventSeed", fallback=np.random.random())
+    np.random.seed(EventSeed)
+
     print("################################################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")
     print("################################################################################")

@@ -109,6 +109,10 @@ Emax = sec.getfloat("Emax", fallback=np.power(10.0, 9.6))
 
 show_plots = sec.getboolean("show_plots", fallback=False)
 
+# Setting seed for random number generator
+FluxSeed = sec.getfloat("FluxSeed", fallback=random.random())
+random.seed(FluxSeed)
+
 print("################################################################################")
 print("Flux Generator Configuration")
 print("################################################################################")
