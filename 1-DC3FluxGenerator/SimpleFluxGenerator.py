@@ -22,9 +22,11 @@ import time
 import select
 import configparser
 import numpy as np
-import matplotlib.pyplot as plt
 import sqlite3
 import random
+
+# The plots of each section; PlotFluxFromDatabase.py makes the same plots from a saved database
+from FluxPlots import plot_flux_distributions
 
 # ==============================================================================
 # HELPER FUNCTIONS
@@ -126,11 +128,6 @@ print("#########################################################################
 
 pause_for_review(5.0)
 
-# Set up global plotting parameters for readability
-if show_plots:
-    plt.figure(figsize=(8,6))
-    plt.rcParams.update({'font.size': 14})
-
 # ==============================================================================
 # Zenith Section
 # ==============================================================================
@@ -156,15 +153,7 @@ def generate_random_zenith(num_samples, theta_min_deg=0, theta_max_deg=80):
 RandomZeniths = generate_random_zenith(Nsims, mintheta, maxtheta)
 
 if show_plots:
-    plt.hist(RandomZeniths)
-    plt.xlabel('Zenith [deg]')
-    plt.ylabel('Number of Sims')
-    plt.show()
-
-    plt.hist(np.log10(1 / np.cos(np.deg2rad(RandomZeniths))))
-    plt.xlabel('Log10(1/cos(Zenith))')
-    plt.ylabel('Number of Sims')
-    plt.show()
+    plot_flux_distributions(zenith_deg=RandomZeniths, show=True)
 
 # ==============================================================================
 # Azimuth Section
@@ -172,10 +161,7 @@ if show_plots:
 RandomAzimuths = np.random.uniform(low=minphi, high=maxphi, size=Nsims)
 
 if show_plots:
-    plt.hist(RandomAzimuths)
-    plt.xlabel('Azimuth [deg]')
-    plt.ylabel('Number of Sims')    
-    plt.show()
+    plot_flux_distributions(azimuth_deg=RandomAzimuths, show=True)
 
 # ==============================================================================
 # Energy Section
@@ -190,19 +176,7 @@ RandomLogEnergies = np.random.uniform(low=LogEmin, high=LogEmax, size=Nsims)
 RandomEnergies = np.power(10, RandomLogEnergies)
 
 if show_plots:
-    # EeV allowed for plotting purposes
-    RandomEnergies_EeV = RandomEnergies * 1.0e-9
-    RandomLogEnergies_EeV = np.log10(RandomEnergies_EeV)
-
-    plt.hist(RandomLogEnergies_EeV, bins=21)
-    plt.xlabel('Log10(Energy [EeV])')
-    plt.ylabel('Number of Sims')
-    plt.show()
-
-    plt.hist(RandomEnergies_EeV, bins=21)
-    plt.xlabel('Energy [EeV]')
-    plt.ylabel('Number of Sims')
-    plt.show()
+    plot_flux_distributions(energy_gev=RandomEnergies, show=True)
 
 if show_plots:
     print("About to generate the flux. If you are happy with these settings press Enter, if not... kill the program now!")
