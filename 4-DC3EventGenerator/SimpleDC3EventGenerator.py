@@ -240,7 +240,7 @@ def main():
     
     dry_run = sec.getboolean("dry_run", fallback=False)
 
-    EventSeed = sec.getfloat("EventSeed", fallback=np.random.random())
+    EventSeed = sec.getint("EventSeed", fallback=np.random.random())
     np.random.seed(EventSeed)
 
     print("################################################################################")
@@ -258,6 +258,7 @@ def main():
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
+    print(f"Random Seed:     {EventSeed}")
     print("################################################################################\n")
 
     if not os.path.isfile(showers_db):

@@ -14,4 +14,12 @@ The outputs are already provided in the repo. Should you want to generate your o
 3 Adapt the ini file accordingly
 4 Run the DC3 chain with it
 
+python ../1-DC3FluxGenerator/SimpleFluxGenerator.py DEBUG_dc3_config_ZHAireS.ini
+
+python ../2-DC3ShowerInputGenerator/SimpleAiresShowerInputGenerator.py DEBUG_dc3_config_ZHAireS.ini
+
+python ../3-DC3XmaxGetter/SimpleXmaxGetter.py DEBUG_dc3_config_ZHAireS.ini 
+
+
+
 To regenerate the Showers and their input files, you will have to have ZHAireS properly installed in your system, of course.
