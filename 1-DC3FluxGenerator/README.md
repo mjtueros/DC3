@@ -19,6 +19,8 @@ python3 1-DC3FluxGenerator/SimpleFluxGenerator.py Example_dc3_config.ini
 
 All configurable parameters (number of showers, energy bounds, zenith and azimuth limits, primary particle types, hadronic interaction models, output file name, and plot display) are specified and explained under the `[FluxGenerator]` section of the `.ini` file.
 
+If the output file already exists, the generator asks before drawing anything: `o` overwrites it (the old file is deleted when the new showers are written) and `e` exits without touching it. It does not offer to append: the natural weight of every shower depends on how many showers were drawn together, so adding showers would change the weights already written. The answer is read from the standard input, so it can also be piped in (`echo o | python3 ...`); with nothing to read, e.g. a batch job without input, the generator exits. `RebuildAiresFluxDatabase.py` asks the same question, and there `a` adds the showers of the library that are not in the database yet.
+
 ## Plots
 
 With `show_plots = True`, the generator shows five plots of the new showers before writing them, one at a time: zenith angle, log10(1/cos(zenith)), azimuth, log10(energy) and energy. The zenith is drawn uniformly in log10(1/cos(zenith)) and the energy uniformly in log10(energy), so those two histograms should be flat. Close each plot to see the next, then press Enter to write the database.

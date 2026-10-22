@@ -4,6 +4,7 @@ import configparser
 import csv
 import sqlite3
 import math
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -111,8 +112,11 @@ def rand_in_hex(center, size):
 # ==============================================================================
 # DATABASE SETUP
 # ==============================================================================
-def init_database(db_path):
-    """Initializes the SQLite database schema."""
+def init_database(db_path, run_settings=None):
+    """
+    Initializes the SQLite database schema. RunSettings records the settings the database is written with
+    (run_settings), so that it is only appended to with the same ones (issue #51).
+    """
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     c.executescript("""
@@ -154,9 +158,56 @@ def init_database(db_path):
         );
         CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
         CREATE INDEX IF NOT EXISTS idx_triggered_ant_event ON TriggeredAntennas(EventID);
+        CREATE TABLE IF NOT EXISTS RunSettings (Name TEXT PRIMARY KEY, Value TEXT);
     """)
+    if run_settings:
+        c.executemany("INSERT OR REPLACE INTO RunSettings (Name, Value) VALUES (?, ?)", run_settings.items())
     conn.commit()
     return conn
+
+def append_problem(db_path, run_settings, showers_db):
+    """
+    Why the existing database db_path cannot be appended to, or None if it can: it must have the tables this
+    EventGenerator writes, have been written with the same settings (its RunSettings table) and hold only
+    events of showers of the input database showers_db, so that its events and the new ones are simulated and
+    weighted the same way.
+    """
+    expected = init_database(":memory:")
+    try:
+        conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            for table in ("Events", "TriggeredAntennas", "TestedCores", "RunSettings"):
+                have = [col[1] for col in conn.execute(f"PRAGMA table_info({table})")]
+                want = [col[1] for col in expected.execute(f"PRAGMA table_info({table})")]
+                if not have:
+                    return ("it does not record the settings it was written with (it was written before they were recorded)"
+                            if table == "RunSettings" else f"it has no {table} table")
+                if have != want:
+                    return f"its {table} table does not have the columns this EventGenerator writes"
+            stored = dict(conn.execute("SELECT Name, Value FROM RunSettings"))
+            names = [name for (name,) in conn.execute("SELECT ShowerName FROM Events")]
+        finally:
+            conn.close()
+    except sqlite3.DatabaseError:
+        return "it is not an SQLite database"
+    finally:
+        expected.close()
+    changed = [f"{name} {stored.get(name, '(not recorded)')} instead of {value}"
+               for name, value in run_settings.items() if stored.get(name) != value]
+    if changed:
+        return "it was written with other settings (" + "; ".join(changed) + ")"
+    try:
+        conn_in = sqlite3.connect(Path(showers_db).resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            input_names = {name for (name,) in conn_in.execute("SELECT ShowerName FROM Showers")}
+        finally:
+            conn_in.close()
+    except sqlite3.DatabaseError as exc:
+        return f"its events cannot be compared with the input database ({exc})"
+    foreign = [name for name in names if name not in input_names]
+    if foreign:
+        return f"{len(foreign)} of its events are of showers that are not in the input database (first: {foreign[0]})"
+    return None
 
 import time
 import select
@@ -173,6 +224,38 @@ def resolve_ini_path(config_file_path, path_str):
         return path_str
     config_dir = os.path.dirname(os.path.abspath(config_file_path))
     return os.path.abspath(os.path.join(config_dir, path_str))
+
+def ask_about_existing_output(db_path, cannot_append):
+    """
+    Asks what to do with an output database that already exists (issue #51): overwrite it, append to it, or
+    exit without touching it. cannot_append is None when appending is possible, or the reason it is not,
+    and then only overwrite and exit are offered. The answer is read from the standard input, so it can also
+    be piped in; with nothing to read (e.g. a batch job without input) the script exits.
+    Returns "overwrite" or "append".
+    """
+    if not os.path.isfile(db_path):
+        print(f"ERROR: The output database '{db_path}' exists but is not a file.")
+        sys.exit(1)
+    print(f"The output database already exists: '{db_path}'.")
+    if cannot_append:
+        print(f"It cannot be appended to: {cannot_append}.")
+        question, answers, valid = "Overwrite it (o) or exit (e)? ", {"o": "overwrite", "e": "exit"}, "o or e"
+    else:
+        question, answers, valid = ("Overwrite it (o), append to it (a) or exit (e)? ",
+                                    {"o": "overwrite", "a": "append", "e": "exit"}, "o, a or e")
+    while True:
+        print(question, end="", flush=True)
+        line = sys.stdin.readline()
+        if not line:
+            print("\nNo answer to read: exiting without touching the database.")
+            sys.exit(1)
+        answer = answers.get(line.strip().lower()[:1])
+        if answer == "exit":
+            print("Exiting without touching the database.")
+            sys.exit(1)
+        if answer:
+            return answer
+        print(f"Please answer {valid}.")
 
 def pause_for_review(timeout=5.0):
     """
@@ -276,6 +359,35 @@ def main():
         print(f"ERROR: Antenna positions CSV file not found: '{antennas_csv}' (resolved relative to config file).")
         sys.exit(1)
 
+    # The settings an existing output database must have been written with to be appended to. Paths are
+    # recorded relative to the output database, so that a moved or cloned project can still append.
+    out_dir_abs = os.path.dirname(os.path.abspath(out_db))
+    run_settings = {
+        "showers_db": os.path.relpath(showers_db, out_dir_abs),
+        "antennas_csv": os.path.relpath(antennas_csv, out_dir_abs),
+        "center_n": repr(center_n),
+        "center_w": repr(center_w),
+        "center_u": repr(center_u),
+        "hex_size": repr(hex_size),
+        "cone_angle": repr(cone_angle),
+        "min_trigger": str(min_trigger),
+        "cores_per_event": str(cores_per_event),
+        "reuse": str(reuse),
+        "dist_min": repr(dist_min),
+        "dist_max": repr(dist_max),
+    }
+    # An existing output database is only changed if you say so (issue #51): overwrite it, append the events
+    # that are not in it yet, or exit. A dry run writes no database, so it does not ask.
+    existing_events, appending, overwrite = set(), False, False
+    if not dry_run and os.path.exists(out_db):
+        if ask_about_existing_output(out_db, append_problem(out_db, run_settings, showers_db)) == "append":
+            appending = True
+            conn_old = sqlite3.connect(Path(out_db).resolve().as_uri() + "?mode=ro", uri=True)
+            existing_events = {name for (name,) in conn_old.execute("SELECT EventName FROM Events")}
+            conn_old.close()
+        else:
+            overwrite = True
+
     pause_for_review(5.0)
 
     # 1. LOAD ANTENNAS
@@ -294,7 +406,11 @@ def main():
 
     # 2. INIT DATABASE
     if not dry_run:
-        conn = init_database(out_db)
+        # You chose to overwrite it: the old database is deleted only now, just before the new one is written
+        if overwrite and os.path.exists(out_db):
+            os.remove(out_db)
+            print(f"Deleted the old '{out_db}'.")
+        conn = init_database(out_db, run_settings)
         cursor = conn.cursor()
 
     # Variables for dry-run plotting
@@ -317,6 +433,7 @@ def main():
     success_count = 0
     event_count = 0
     skipped_count = 0
+    already_count = 0
     natural_count = 0
     natural_rate_total = 0.0
     
@@ -354,6 +471,11 @@ def main():
 
         # EVENT REUSE LOOP
         for reuse_idx in range(reuse):
+            unique_event_name = f"{row['ShowerName']}_r{reuse_idx}"
+            # Appending: the events already in the database are kept, not simulated again
+            if unique_event_name in existing_events:
+                already_count += 1
+                continue
             tested_cores = []
             n_triggers = 0
             first_trigger = None
@@ -412,8 +534,6 @@ def main():
 
             # Save to Database
             if not dry_run:
-                unique_event_name = f"{row['ShowerName']}_r{reuse_idx}"
-                
                 cursor.execute("""
                     INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
                                         Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries,
@@ -450,14 +570,23 @@ def main():
     print(f"\n{success_count} of {event_count} events triggered ({cores_per_event} cores tested per shower).")
     if skipped_count:
         print(f"{skipped_count} showers were skipped (no Xmax distance, or outside dist_min to dist_max): they are not in the database or in the natural rate.")
+    if already_count:
+        print(f"{already_count} events were already in the database: they were kept, not simulated again.")
     if event_count == 0:
         print("No event was simulated, so there is no natural rate.")
     elif natural_count == event_count:
-        print(f"Natural rate of triggered events: {natural_rate_total:.6g} per year (sum of NaturalRate_per_yr).")
+        print(f"Natural rate of triggered events{' of this run' if appending else ''}: {natural_rate_total:.6g} per year (sum of NaturalRate_per_yr).")
     elif natural_count == 0:
         print("The input database has no NaturalWeight, so NaturalRate_per_yr is left empty.")
     else:
         print(f"NaturalWeight is empty for {event_count - natural_count} of the {event_count} events, so their NaturalRate_per_yr is empty.")
+    if appending:
+        n_all, n_triggered, n_rate, rate_all = cursor.execute(
+            "SELECT COUNT(*), COALESCE(SUM(Triggers > 0), 0), COUNT(NaturalRate_per_yr), SUM(NaturalRate_per_yr) FROM Events").fetchone()
+        summary = f"The database now holds {n_all} events, {n_triggered} of them triggered"
+        if n_all and n_rate == n_all:
+            summary += f"; their natural rate of triggered events is {rate_all:.6g} per year"
+        print(summary + ".")
 
     # 4. WRAP UP & PLOTTING
     if dry_run:
