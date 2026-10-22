@@ -32,6 +32,14 @@ python3 4-DC3EventGenerator/SimpleEventViewer.py Example_dc3_config.ini
 
 All configurable parameters (input database, antenna CSV layout, hexagon dimensions, Cherenkov cone angle, trigger criteria, cores tested per shower, shower reuse factor, distance filters, and dry-run mode) are specified and explained under the `[EventGenerator]` section of the `.ini` file.
 
+If `out_db` already exists, the generator asks before simulating anything:
+
+- `o` overwrites it. The old file is deleted just before the new one is written.
+- `a` appends to it the events that are not in it yet. An event is known by its `EventName`, `<ShowerName>_r<reuse index>`, and the events already there are kept as they are, so appending also resumes an interrupted run. It is only offered when the database was written with the same settings (`showers_db`, `antennas_csv`, `center_n`, `center_w`, `center_u`, `hex_size`, `cone_angle`, `min_trigger`, `cores_per_event`, `reuse`, `dist_min` and `dist_max`, recorded in its `RunSettings` table) and holds only events of showers of the same input database, so that all its events are simulated and weighted the same way.
+- `e` exits without touching it.
+
+The answer is read from the standard input, so it can also be piped in; with nothing to read (e.g. a batch job without input) the generator exits. A dry run writes no database, so it does not ask.
+
 ## Trigger Probability and Weights
 
 For every shower, and every reuse of it, the generator tests `cores_per_event` core positions drawn uniformly in the hexagon and counts how many of them trigger (`min_trigger` antennas or more). It keeps the first core that triggered: the cores are drawn uniformly, so it is a uniform draw from the area where that shower triggers, as real cores would be.
@@ -53,7 +61,8 @@ GROUP BY ZenithBin;
 
 ## Output Database Schema
 
-The generated SQLite file contains three tables:
+The generated SQLite file contains four tables:
 - **`Events`**: Event and shower names, primary particle, energy, arrival direction, core coordinates, $X_{\max}$ coordinates, cores tested (`Tries`) and those that triggered (`Triggers`), event weight (`Weight`) and natural rate of triggered events (`NaturalRate_per_yr`).
 - **`TriggeredAntennas`**: Tagged antenna identifiers, relative core-to-antenna coordinates, and mock signal amplitudes.
 - **`TestedCores`**: Coordinates of every core position tested, and whether it triggered (`Triggered`, 1 or 0).
+- **`RunSettings`**: The settings the database was written with (`Name`, `Value`), which appending checks.

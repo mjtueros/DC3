@@ -38,6 +38,8 @@ python3 4-DC3EventGenerator/SimpleDC3EventGenerator.py Example_dc3_config.ini
 python3 5-DC3EventEfieldInputGenerator/SimpleDC3ZHAireSEventEfieldInputGenerator.py Example_dc3_config.ini
 ```
 
+If the output database of stage 1, 3 or 4 (or of `RebuildAiresFluxDatabase.py`) already exists, the script asks, before computing anything, whether to overwrite it (`o`), append to it (`a`: the showers or events that are not in it yet, where that gives the same result as one run) or exit (`e`). It asks only when the file exists, and with no answer to read (e.g. a batch job without input) it exits. The repository includes example databases, so the commands above ask about them: answer `e` and set new names in the `.ini` file to keep them.
+
 ---
 
 # Pipeline Modules
