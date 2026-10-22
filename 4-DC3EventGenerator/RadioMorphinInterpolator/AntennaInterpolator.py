@@ -43,7 +43,7 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
                   'Altitude: ' + str(Altitude) + '\n',
                   'Fluctuations: ' + str(Fluctuations) + '\n'
     ]
-    path_to_parameters = os.path.join(RadioMorphingPath, 'ShowerInputs/Shower.inp')
+    path_to_parameters = os.path.expanduser(os.path.join(RadioMorphingPath, 'ShowerInputs/Shower.inp'))
     with open(path_to_parameters, 'w') as file:
         file.writelines(parameters)
     
@@ -53,16 +53,16 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
     for i in AntennaPositions:
         positions = positions + [f"{i[0]:.18e}" + ' ' + f"{i[1]:.18e}" + ' ' + f"{i[2]:.18e}" + '\n']
         #positions = positions + [str(i[0]) + ' ' + str(i[1]) + ' ' + str(i[2]) + '\n']
-    path_to_antennas = os.path.join(RadioMorphingPath, 'DesiredPositions/desired_pos.txt')
+    path_to_antennas = os.path.expanduser(os.path.join(RadioMorphingPath, 'DesiredPositions/desired_pos.txt'))
     with open(path_to_antennas, 'w') as file:
         file.writelines(positions)
 
     ### Interpolation
-    path_to_run = os.path.join(RadioMorphingPath, 'Scripts/RunRadioMorphing.py')
-    subprocess.run(['python', path_to_run], cwd=os.path.join(RadioMorphingPath, 'Scripts/'))
+    path_to_run = os.path.expanduser(os.path.join(RadioMorphingPath, 'Scripts/RunRadioMorphing.py'))
+    subprocess.run(['python3', path_to_run], cwd=os.path.expanduser(os.path.join(RadioMorphingPath, 'Scripts/')))
 
     ### Read traces
-    TracesPath = os.path.join(RadioMorphingPath, "OutputDirectory/")
+    TracesPath = os.path.expanduser(os.path.join(RadioMorphingPath, "OutputDirectory/"))
     NofAntennas = len(glob.glob(TracesPath + "*"))
     Emax = []
     IndividualTraces = []
@@ -71,9 +71,19 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
     for i in range(NofAntennas):
         
         filename = 'DesiredTraces_' + str(i) + '.txt'
-    
-        t, Ex, Ey, Ez = np.loadtxt(TracesPath + filename, unpack=True)
-    
+        
+        try:
+            t, Ex, Ey, Ez = np.loadtxt(TracesPath + filename, unpack=True)
+
+            if len(t) != 1999:
+                raise ValueError
+            
+        except (ValueError, TypeError):
+            t = np.zeros(1999)
+            Ex = np.zeros(1999)
+            Ey = np.zeros(1999)
+            Ez = np.zeros(1999)
+        
         IndividualTraces = IndividualTraces + [[t, Ex, Ey, Ez]]
         
     return np.array(IndividualTraces)
@@ -104,7 +114,7 @@ def ButterFilter(Trace, Lowcut = 30e6, Highcut = 200e6, fs = 2e9):
     return lfilter(b, a, Trace)
 
 
-def TriggeredAntennas(IndividualTraces, AntennaPositions, Threshold = 12, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
+def TriggeredAntennas(IndividualTraces, AntennaID, Threshold = 12, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9):
     """
     Performs a butterworth filter using scipy.signal.butter module. It is a causal filter.
 
@@ -112,8 +122,8 @@ def TriggeredAntennas(IndividualTraces, AntennaPositions, Threshold = 12, Filter
     -----------
     IndividualTraces : array (N, 4, )
         RadioMorphing output from AntennaInterpolator, containing all traces.
-    AntennaPositions : array (N, 3)
-        List of N antenna positions (Northing, Westing, Up) in meters.
+    AntennaID : array (N)
+        List of N antenna ID numbers.
     Threshold : float
         Threshold for the trigger in µV/m, 12 by default.
     Filter : boolean
@@ -126,7 +136,8 @@ def TriggeredAntennas(IndividualTraces, AntennaPositions, Threshold = 12, Filter
         Sampling frecuency of the signal in Hz, 2GHz by default.
     """
     
-    TriggeredAntennas = []    
+    TriggeredAntennas = []
+    Amplitudes = []
     for i in range(len(IndividualTraces)):
         [t, Ex, Ey, Ez] = IndividualTraces[i]
         
@@ -137,7 +148,8 @@ def TriggeredAntennas(IndividualTraces, AntennaPositions, Threshold = 12, Filter
             
         module = np.sqrt(Ex**2 + Ey**2 + Ez**2)
         if max(module) > 12:
-            TriggeredAntennas = TriggeredAntennas + [AntennaPositions[i]]
+            TriggeredAntennas = TriggeredAntennas + [int(AntennaID[i])]
+            Amplitudes = Amplitudes + [max(module)]
     
-    return TriggeredAntennas
+    return TriggeredAntennas, Amplitudes
 
