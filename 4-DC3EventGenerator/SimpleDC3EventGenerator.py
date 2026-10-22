@@ -35,7 +35,7 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
         Expected signal amplitudes for the triggered antennas.
     """
     # 1. SHOWER VECTOR
-    # k is the unit vector pointing in the direction of the shower
+    # k is the unit vector pointing to where the shower comes from (zenith and azimuth are the direction of origin)
     theta = np.radians(theta_deg)
     phi = np.radians(phi_deg)
     k = np.array([
@@ -45,7 +45,7 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     ])
 
     # 2. XMAX TO ANTENNA VECTORS
-    # u_ant is the unit vector pointing from Xmax to the antenna position
+    # u_ant is the unit vector pointing from the antenna position to Xmax, i.e. towards where the shower comes from
     u_ant =  xmax - ant_pos
     # dist is the distance from Xmax to the antenna position
     dist = np.linalg.norm(u_ant, axis=1)
@@ -343,8 +343,9 @@ def main():
             for try_idx in range(1, max_tries + 1):
                 core_pos = rand_in_hex(center_pos, hex_size)
                 tested_cores.append(core_pos)
-                #xmax_dist*kvector gives the xmax position from the core, minus the core to move to the cite CS
-                xmax_pos = (xmax_dist_km * 1000.0 * k_vector) - core_pos
+                # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
+                # Core and antennas are both in the site CS, so Xmax is too.
+                xmax_pos = core_pos + (xmax_dist_km * 1000.0 * k_vector)
                 trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
                 
                 if len(trig_idx) >= min_trigger:
