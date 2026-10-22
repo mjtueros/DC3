@@ -47,4 +47,4 @@ The natural flux is set in the `[FluxGenerator]` section of the `.ini` file:
 
 The weights use the all-particle flux: the showers of each primary represent their share of the library (50% each when alternating Proton and Iron). Because the generator oversamples high energies and inclined showers, the weights span several orders of magnitude and a few low-energy, low-zenith showers carry most of the total, so natural-weighted results need large libraries.
 
-`NaturalWeights.py` also computes the weights of an existing database from the database and the `.ini` file that produced it, with `natural_weights_from_database()`. The XmaxGetter copies `NaturalWeight` into its database.
+`NaturalWeights.py` also computes the weights of an existing database from the database and the `.ini` file that produced it, with `natural_weights_from_database()`. The XmaxGetter copies `NaturalWeight` into its database, and the EventGenerator turns it into the natural rate of triggered events that each event stands for (`NaturalRate_per_yr`, see `4-DC3EventGenerator/README.md`), which needs the `flat` geometry.
