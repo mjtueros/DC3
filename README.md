@@ -25,6 +25,8 @@ python3 1-DC3FluxGenerator/SimpleFluxGenerator.py Example_dc3_config.ini
 
 # 2. (Optional) Generate AIRES particle simulation inputs
 python3 2-DC3ShowerInputGenerator/SimpleAiresShowerInputGenerator.py Example_dc3_config.ini
+#    or the CORSIKA ones, for CoREAS
+python3 2-DC3ShowerInputGenerator/SimpleCoREASShowerInputGenerator.py Example_dc3_config.ini
 
 # 3. Calculate Xmax distances and altitudes
 python3 3-DC3XmaxGetter/SimpleXmaxGetter.py Example_dc3_config.ini
@@ -41,7 +43,7 @@ python3 5-DC3EventEfieldInputGenerator/SimpleDC3ZHAireSEventEfieldInputGenerator
 # Pipeline Modules
 
 - **`1-DC3FluxGenerator`**: Creates initial event geometries and energies according to mathematical sampling distributions into an SQLite database.
-- **`2-DC3ShowerInputGenerator`**: Creates input files to run particle simulations to avoid running untriggerable events.
+- **`2-DC3ShowerInputGenerator`**: Creates input files to run particle simulations (AIRES, or CORSIKA for CoREAS) to avoid running untriggerable events.
 - **`3-DC3XmaxGetter`**: Obtains $X_{\max}$, geometric distance, and altitude for each shower.
 - **`4-DC3EventGenerator`**: Throws random cores inside a hexagonal area over the antenna array, checks Cherenkov cone intersection, evaluates triggers, and renormalizes event weights.
 - **`5-DC3EventEfieldInputGenerator`**: Generates ZHAireS `.inp` files for the triggered events to run radio simulations.
