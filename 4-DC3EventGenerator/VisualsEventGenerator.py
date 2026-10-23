@@ -97,10 +97,10 @@ def visualize_cores(ant_pos, cone_angle, plot_all_cores, plot_triggered_cores):
         plot_all_cores: List of all tested core positions.
         plot_triggered_cores: List of cores that triggered the array.
 
-    Saves a scatter plot (ExampleCores.pdf) in ./4-DC3EventGenerator/figures/
+    Saves a scatter plot (ExampleCores.pdf) in ./figures/4-DC3EventGenerator/
     showing antennas, tested cores (gray), and triggered cores (red).
     """
-    path_figures = Path("./4-DC3EventGenerator/figures")
+    path_figures = Path("./figures/4-DC3EventGenerator/")
     path_figures.mkdir(parents=True, exist_ok=True)
     plot_all, plot_trig = np.array(plot_all_cores), np.array(plot_triggered_cores)
 
@@ -163,10 +163,10 @@ def visualize_distributions(
         out_xmax: Output Xmax values (g/cm²).
         out_wgt: Output weights for weighted histograms.
 
-    Saves four PDF plots (Zenith/Azimuth/Energy/Xmax) in ./4-DC3EventGenerator/figures/
+    Saves four PDF plots (Zenith/Azimuth/Energy/Xmax) in ./figures/4-DC3EventGenerator/
     comparing input (black) and output (red/blue) distributions, both unweighted and weighted.
     """
-    path_figures = Path("./4-DC3EventGenerator/figures")
+    path_figures = Path("./figures/4-DC3EventGenerator/")
     path_figures.mkdir(parents=True, exist_ok=True)
 
     # Zenith Plot
@@ -326,11 +326,11 @@ def visualize_xmax(
         out_wgt: Output weights for weighted histograms.
         out_primary: Primary particle types ("Proton" or "Iron").
 
-    Saves two sets of PDF plots in ./4-DC3EventGenerator/figures/xmax/:
+    Saves two sets of PDF plots in ./figures/4-DC3EventGenerator/xmax/:
     - Xmax distributions (unweighted and weighted) per energy bin.
     - Relative differences between unweighted and weighted Xmax counts.
     """
-    path_figures = Path("./4-DC3EventGenerator/figures/xmax")
+    path_figures = Path("./figures/4-DC3EventGenerator/xmax")
     path_figures.mkdir(parents=True, exist_ok=True)
 
     # Use arrays instead of lists
@@ -460,16 +460,19 @@ def visualize_xmaxfits(
 
     For each energy bin:
     - Fits a Generalized Gumbel distribution to proton and iron Xmax histograms.
-    - Saves fitted PDF plots (Xmax_fit_*.pdf) in ./4-DC3EventGenerator/figures/xmax/.
+    - Saves fitted PDF plots (Xmax_fit_*.pdf) in ./figures/4-DC3EventGenerator/xmax/.
 
     Additionally:
     - Plots mean Xmax vs. energy with comparisons to Sibyll 2.3d and QGSJet-II.04 models.
     - Plots sigma Xmax vs. energy with the same model comparisons.
     - Saves comparison plots (Xmax_mean_wgt_comp.pdf, Xmax_sigma_wgt_comp.pdf).
     """
-    path_figures = Path("./4-DC3EventGenerator/figures/xmax")
+    path_figures = Path("./figures/4-DC3EventGenerator/xmax")
     path_figures.mkdir(parents=True, exist_ok=True)
-    path_data = Path("./4-DC3EventGenerator/figures/xmax_data")
+    SCRIPT_DIR = Path(__file__).resolve().parent
+    path_data = SCRIPT_DIR / "figures" / "xmax_data" 
+    print("path_data",path_data)
+    print("path_figures",path_figures)
 
     # Use arrays instead of lists
     out_egy = np.array(out_egy)
