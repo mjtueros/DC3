@@ -132,6 +132,7 @@ def init_database(db_path):
             Core_N REAL,
             Core_W REAL,
             Core_U REAL,
+            Xmax_g_cm2 REAL,
             Xmax_N REAL,
             Xmax_W REAL,
             Xmax_U REAL,
@@ -409,9 +410,8 @@ def main():
 
                 cursor.execute(
                     """
-                    INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
-                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, Core_N, Core_W, Core_U, Xmax_g_cm2, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         unique_event_name,
@@ -423,6 +423,7 @@ def main():
                         core_pos[0],
                         core_pos[1],
                         core_pos[2],
+                        xmax_g_cm2,
                         xmax_pos[0],
                         xmax_pos[1],
                         xmax_pos[2],
