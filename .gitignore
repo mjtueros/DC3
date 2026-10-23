@@ -4,6 +4,9 @@ __pycache__/
 # Ignore a directory located at the root of the project:
 /AiresInputs/
 /ZHAireS-Inputs/
+/CoREASInputs/
 
 .vscode/
 pyrefly.toml
+*.pyc
+Issue #* Code Review.html

@@ -22,10 +22,13 @@ import time
 import select
 import configparser
 import numpy as np
-import matplotlib.pyplot as plt
 import sqlite3
 import random
 
+# The plots of each section; PlotFluxFromDatabase.py makes the same plots from a saved database
+from FluxPlots import plot_flux_distributions
+# The weight that makes each shower represent the natural flux
+from NaturalWeights import natural_weights, SPECTRA, GEOMETRIES
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
@@ -41,6 +44,38 @@ def resolve_ini_path(config_file_path, path_str):
         return path_str
     config_dir = os.path.dirname(os.path.abspath(config_file_path))
     return os.path.abspath(os.path.join(config_dir, path_str))
+
+def ask_about_existing_output(db_path, cannot_append):
+    """
+    Asks what to do with an output database that already exists (issue #51): overwrite it, append to it, or
+    exit without touching it. cannot_append is None when appending is possible, or the reason it is not,
+    and then only overwrite and exit are offered. The answer is read from the standard input, so it can also
+    be piped in; with nothing to read (e.g. a batch job without input) the script exits.
+    Returns "overwrite" or "append".
+    """
+    if not os.path.isfile(db_path):
+        print(f"ERROR: The output database '{db_path}' exists but is not a file.")
+        sys.exit(1)
+    print(f"The output database already exists: '{db_path}'.")
+    if cannot_append:
+        print(f"It cannot be appended to: {cannot_append}.")
+        question, answers, valid = "Overwrite it (o) or exit (e)? ", {"o": "overwrite", "e": "exit"}, "o or e"
+    else:
+        question, answers, valid = ("Overwrite it (o), append to it (a) or exit (e)? ",
+                                    {"o": "overwrite", "a": "append", "e": "exit"}, "o, a or e")
+    while True:
+        print(question, end="", flush=True)
+        line = sys.stdin.readline()
+        if not line:
+            print("\nNo answer to read: exiting without touching the database.")
+            sys.exit(1)
+        answer = answers.get(line.strip().lower()[:1])
+        if answer == "exit":
+            print("Exiting without touching the database.")
+            sys.exit(1)
+        if answer:
+            return answer
+        print(f"Please answer {valid}.")
 
 def pause_for_review(timeout=5.0):
     """
@@ -108,6 +143,14 @@ Emin = sec.getfloat("Emin", fallback=np.power(10.0, 7.5))
 Emax = sec.getfloat("Emax", fallback=np.power(10.0, 9.6))
 
 show_plots = sec.getboolean("show_plots", fallback=False)
+natural_spectrum = sec.get("natural_spectrum", fallback="TALE2018").strip()
+natural_geometry = sec.get("natural_geometry", fallback="flat").strip()
+if natural_spectrum not in SPECTRA:
+    print(f"ERROR: Unknown natural_spectrum '{natural_spectrum}'. Use one of: {', '.join(SPECTRA)}.")
+    sys.exit(1)
+if natural_geometry not in GEOMETRIES:
+    print(f"ERROR: Unknown natural_geometry '{natural_geometry}'. Use one of: {', '.join(GEOMETRIES)}.")
+    sys.exit(1)
 
 # Setting seed for random number generator
 FluxSeed = sec.getint("FluxSeed", fallback=random.random())
@@ -128,14 +171,20 @@ print(f"Zenith:         [{mintheta}, {maxtheta}] deg")
 print(f"Azimuth:        [{minphi}, {maxphi}] deg")
 print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] GeV")
 print(f"Show Plots:     {show_plots}")
+print(f"Natural Flux:   {natural_spectrum} spectrum, {natural_geometry} geometry")
 print(f"Seed:           {FluxSeed}")
 print("################################################################################\n")
-pause_for_review(5.0)
 
-# Set up global plotting parameters for readability
-if show_plots:
-    plt.figure(figsize=(8,6))
-    plt.rcParams.update({'font.size': 14})
+# An existing output database is only replaced if you say so (issue #51). Appending is not offered: the natural
+# weight of every shower depends on how many showers were drawn together.
+if os.path.exists(OutputFileName):
+    ask_about_existing_output(OutputFileName, "the natural weight of every shower depends on how many showers "
+                              "were drawn together, so adding showers would change the weights already in it")
+    overwrite_output = True
+else:
+    overwrite_output = False
+
+pause_for_review(5.0)
 
 # ==============================================================================
 # Zenith Section
@@ -162,15 +211,7 @@ def generate_random_zenith(num_samples, theta_min_deg=0, theta_max_deg=80):
 RandomZeniths = generate_random_zenith(Nsims, mintheta, maxtheta)
 
 if show_plots:
-    plt.hist(RandomZeniths)
-    plt.xlabel('Zenith [deg]')
-    plt.ylabel('Number of Sims')
-    plt.show()
-
-    plt.hist(np.log10(1 / np.cos(np.deg2rad(RandomZeniths))))
-    plt.xlabel('Log10(1/cos(Zenith))')
-    plt.ylabel('Number of Sims')
-    plt.show()
+    plot_flux_distributions(zenith_deg=RandomZeniths, show=True)
 
 # ==============================================================================
 # Azimuth Section
@@ -178,10 +219,7 @@ if show_plots:
 RandomAzimuths = np.random.uniform(low=minphi, high=maxphi, size=Nsims)
 
 if show_plots:
-    plt.hist(RandomAzimuths)
-    plt.xlabel('Azimuth [deg]')
-    plt.ylabel('Number of Sims')    
-    plt.show()
+    plot_flux_distributions(azimuth_deg=RandomAzimuths, show=True)
 
 # ==============================================================================
 # Energy Section
@@ -196,23 +234,18 @@ RandomLogEnergies = np.random.uniform(low=LogEmin, high=LogEmax, size=Nsims)
 RandomEnergies = np.power(10, RandomLogEnergies)
 
 if show_plots:
-    # EeV allowed for plotting purposes
-    RandomEnergies_EeV = RandomEnergies * 1.0e-9
-    RandomLogEnergies_EeV = np.log10(RandomEnergies_EeV)
-
-    plt.hist(RandomLogEnergies_EeV, bins=21)
-    plt.xlabel('Log10(Energy [EeV])')
-    plt.ylabel('Number of Sims')
-    plt.show()
-
-    plt.hist(RandomEnergies_EeV, bins=21)
-    plt.xlabel('Energy [EeV]')
-    plt.ylabel('Number of Sims')
-    plt.show()
+    plot_flux_distributions(energy_gev=RandomEnergies, show=True)
 
 if show_plots:
     print("About to generate the flux. If you are happy with these settings press Enter, if not... kill the program now!")
     sys.stdin.readline()
+# ==============================================================================
+# Natural Weights
+# ==============================================================================
+# Expected number of showers like each one per km^2 per year in nature (NaturalWeights.py)
+ShowerNaturalWeights = natural_weights(RandomEnergies, RandomZeniths, Nsims, Emin, Emax,
+                                       mintheta, maxtheta, minphi, maxphi,
+                                       natural_spectrum, natural_geometry)
 
 # ==============================================================================
 # Output Database
@@ -221,14 +254,10 @@ out_dir = os.path.dirname(OutputFileName)
 if out_dir and not os.path.exists(out_dir):
     os.makedirs(out_dir, exist_ok=True)
 
-counter = 0
-base_output = OutputFileName
-out_parent = os.path.dirname(OutputFileName)
-out_base = os.path.basename(OutputFileName)
-while os.path.exists(OutputFileName):
-    OutputFileName = os.path.join(out_parent, f"{counter}_{out_base}")
-    print(base_output, "exists, renaming to", OutputFileName)
-    counter += 1
+# You chose to overwrite it: the old database is deleted only now that the new showers are ready
+if overwrite_output and os.path.exists(OutputFileName):
+    os.remove(OutputFileName)
+    print(f"Deleted the old '{OutputFileName}'.")
 
 conn = sqlite3.connect(OutputFileName)
 cursor = conn.cursor()
@@ -243,7 +272,8 @@ cursor.execute("""
         Energy_GeV REAL,
         Zenith_Deg REAL,
         Azimuth_Deg REAL,
-        Model TEXT
+        Model TEXT,
+        NaturalWeight REAL
     )
 """)
 
@@ -273,14 +303,14 @@ for i in range(0, Nsims):
 
     showers_data.append((
         ShowerNumber, ShowerName, RandomSeed_str, ShowerWeight, 
-        Primary, Energy, Zenith, Azimuth, Model
+        Primary, Energy, Zenith, Azimuth, Model, float(ShowerNaturalWeights[i])
     ))
 
 cursor.executemany("""
     INSERT INTO Showers (
         ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
-        PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model, NaturalWeight
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """, showers_data)
 
 conn.commit()
