@@ -269,7 +269,7 @@ def main():
                                         RandomSeed=random_seed, OutputFile=out_inp_path)
 
         # 7. FETCH TRIGGERED ANTENNAS
-        cursor.execute("SELECT AntennaID, Rel_N, Rel_W, Rel_U FROM TriggeredAntennas WHERE EventID = ?", (event_id,))
+        cursor.execute("SELECT AntennaID, Rel_N, Rel_W, Rel_U, Amplitude FROM TriggeredAntennas WHERE EventID = ?", (event_id,))
         antennas = cursor.fetchall()
         
         if antennas:
@@ -280,6 +280,16 @@ def main():
             AiresInp.CreateAiresAntennaListInp(ant_positions, out_inp_path, 
                                                AntennaNames=ant_names, 
                                                AntennaSelection=numeric_selection)
+
+            # The amplitude the EventGenerator expected at each antenna, as comment lines for future
+            # reference (issue #53). The lines are in the order of the AddAntenna lines above.
+            with open(out_inp_path, "a") as f:
+                f.write("####################################################################################\n")
+                f.write("# Expected amplitude at each antenna, from the EventGenerator (its mock model,     #\n")
+                f.write("# arbitrary units), for reference: AntennaID Amplitude                             #\n")
+                for ant_id, _, _, _, amplitude in antennas:
+                    f.write(f"# {ant_id} {amplitude:.6e}\n")
+                f.write("####################################################################################\n\n")
             
             AiresInp.CreateTimeWindowInp(xmax_dist_m, out_inp_path, Tmin=-250, Tmax=1000-250)
         else:
