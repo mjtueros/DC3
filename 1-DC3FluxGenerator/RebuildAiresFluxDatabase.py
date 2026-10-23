@@ -44,6 +44,41 @@ except ImportError:
 
 
 # ==============================================================================
+# EXISTING OUTPUT
+# ==============================================================================
+def ask_about_existing_output(db_path, cannot_append):
+    """
+    Asks what to do with an output database that already exists (issue #51): overwrite it, append to it, or
+    exit without touching it. cannot_append is None when appending is possible, or the reason it is not,
+    and then only overwrite and exit are offered. The answer is read from the standard input, so it can also
+    be piped in; with nothing to read (e.g. a batch job without input) the script exits.
+    Returns "overwrite" or "append".
+    """
+    if not os.path.isfile(db_path):
+        print(f"ERROR: The output database '{db_path}' exists but is not a file.")
+        sys.exit(1)
+    print(f"The output database already exists: '{db_path}'.")
+    if cannot_append:
+        print(f"It cannot be appended to: {cannot_append}.")
+        question, answers, valid = "Overwrite it (o) or exit (e)? ", {"o": "overwrite", "e": "exit"}, "o or e"
+    else:
+        question, answers, valid = ("Overwrite it (o), append to it (a) or exit (e)? ",
+                                    {"o": "overwrite", "a": "append", "e": "exit"}, "o, a or e")
+    while True:
+        print(question, end="", flush=True)
+        line = sys.stdin.readline()
+        if not line:
+            print("\nNo answer to read: exiting without touching the database.")
+            sys.exit(1)
+        answer = answers.get(line.strip().lower()[:1])
+        if answer == "exit":
+            print("Exiting without touching the database.")
+            sys.exit(1)
+        if answer:
+            return answer
+        print(f"Please answer {valid}.")
+
+# ==============================================================================
 # HELPER DATA CLEANERS (To match SimpleFluxGenerator.py formats)
 # ==============================================================================
 def clean_primary_name(raw_primary):
@@ -81,27 +116,27 @@ def main():
         sys.exit(1)
 
     # 1. INIT DATABASE
+    # An existing output database is only changed if you say so (issue #51): overwrite it, append the showers
+    # that are not in it yet (by ShowerName), or exit
+    existing = set()
     if os.path.exists(args.output_db):
-        print(f"[WARNING] Output file '{args.output_db}' already exists. Appending to it.")
-        
-    conn = sqlite3.connect(args.output_db)
-    cursor = conn.cursor()
-
-    # Create table matching SimpleFluxGenerator.py schema
-    # Note: ShowerNumber is set to AUTOINCREMENT to automatically assign sequential IDs
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Showers (
-            ShowerNumber INTEGER PRIMARY KEY AUTOINCREMENT,
-            ShowerName TEXT,
-            RandomSeed TEXT,
-            ShowerWeight REAL,
-            PrimaryType TEXT,
-            Energy_GeV REAL,
-            Zenith_Deg REAL,
-            Azimuth_Deg REAL,
-            Model TEXT
-        )
-    """)
+        cannot_append = None
+        try:
+            conn = sqlite3.connect(f"file:{os.path.abspath(args.output_db)}?mode=ro", uri=True)
+            if "ShowerName" not in [col[1] for col in conn.execute("PRAGMA table_info(Showers)")]:
+                cannot_append = "it has no Showers table with a ShowerName column"
+            else:
+                existing = {name for (name,) in conn.execute("SELECT ShowerName FROM Showers")}
+            conn.close()
+        except sqlite3.DatabaseError:
+            cannot_append = "it is not an SQLite database"
+        if ask_about_existing_output(args.output_db, cannot_append) == "overwrite":
+            overwrite = True
+            existing = set()
+        else:
+            overwrite = False
+    else:
+        overwrite = False
 
     # 2. LOCATE FILES
     print(f"Scanning directory: {args.input_dir}...")
@@ -121,6 +156,7 @@ def main():
     showers_data = []
     n_success = 0
     n_errors = 0
+    n_already = 0
 
     for idx, filepath in enumerate(sry_files, 1):
         try:
@@ -141,10 +177,15 @@ def main():
             # Event weight was 1.0 by default in SimpleFluxGenerator
             weight = 1.0
 
+            n_success += 1
+            # Appending: the showers already in the database are kept as they are
+            if task_name in existing:
+                n_already += 1
+                continue
+
             showers_data.append((
                 task_name, seed, weight, primary, energy_gev, zenith, azimuth, model
             ))
-            n_success += 1
             
         except Exception as e:
             print(f"  [ERROR] Failed to read {os.path.basename(filepath)}: {e}")
@@ -155,6 +196,29 @@ def main():
             print(f"  Processed {idx}/{len(sry_files)} files...")
 
     # 4. INSERT INTO DATABASE
+    # You chose to overwrite it: the old database is deleted only now that the library has been read
+    if overwrite and os.path.exists(args.output_db):
+        os.remove(args.output_db)
+        print(f"Deleted the old '{args.output_db}'.")
+    conn = sqlite3.connect(args.output_db)
+    cursor = conn.cursor()
+
+    # Create table matching SimpleFluxGenerator.py schema
+    # Note: ShowerNumber is set to AUTOINCREMENT to automatically assign sequential IDs
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Showers (
+            ShowerNumber INTEGER PRIMARY KEY AUTOINCREMENT,
+            ShowerName TEXT,
+            RandomSeed TEXT,
+            ShowerWeight REAL,
+            PrimaryType TEXT,
+            Energy_GeV REAL,
+            Zenith_Deg REAL,
+            Azimuth_Deg REAL,
+            Model TEXT
+        )
+    """)
+
     print("\nInserting data into SQLite database...")
     cursor.executemany("""
         INSERT INTO Showers (
@@ -172,6 +236,8 @@ def main():
     print("=" * 60)
     print(f"Total Files Found : {len(sry_files)}")
     print(f"Successfully Read : {n_success}")
+    print(f"Already in DB     : {n_already}  (kept as they were)")
+    print(f"Added to DB       : {len(showers_data)}")
     print(f"Failed to Read    : {n_errors}")
     print(f"Database Saved To : {args.output_db}")
     print("=" * 60)

@@ -1,0 +1,46 @@
+# CoREAS V1.4 parameter file, laid out as the example of the CoREAS 1.4 user's manual.
+# SimpleCoREASShowerInputGenerator.py writes the event lines (EventNumber, RunNumber,
+# CorsikaFilePath, CorsikaParameterFile) above this skeleton in SIM<run>.reas.
+# CORSIKA builds with CoREAS read SIM<run>.reas and the antenna list SIM<run>.list from
+# the DIRECT directory at the start of each run. The list is left empty: these are
+# particle simulations, without radio.
+
+# parameters setting up the spatial observer configuration:
+
+CoreCoordinateNorth = 0                 ; in cm
+CoreCoordinateWest = 0                  ; in cm
+CoreCoordinateVertical = 126400         ; in cm, the observation level (OBSLEV) of Example.CoREAS.Skeleton.inp
+
+# parameters setting up the temporal observer configuration:
+
+TimeResolution = 5e-10                  ; in s
+AutomaticTimeBoundaries = 4e-07         ; 0: off, x: automatic boundaries with width x in s
+TimeLowerBoundary = -1                  ; in s, only if AutomaticTimeBoundaries set to 0
+TimeUpperBoundary = 1                   ; in s, only if AutomaticTimeBoundaries set to 0
+ResolutionReductionScale = 0            ; 0: off, x: decrease time resolution linearly every x cm in radius
+
+# parameters setting up the simulation functionality:
+GroundLevelRefractiveIndex = 1.000312   ; specify refractive index at 0 m asl
+
+# event information for Offline simulations:
+
+GPSSecs = 0
+GPSNanoSecs = 0
+CoreEastingOffline = 0                  ; in meters
+CoreNorthingOffline = 0                 ; in meters
+CoreVerticalOffline = 0                 ; in meters
+OfflineCoordinateSystem = Reference
+RotationAngleForMagfieldDeclination = 0 ; in degrees
+Comment =
+
+# event information for your convenience, not used as input (CoREAS writes the values used after the run):
+
+ShowerZenithAngle = 0                   ; in degrees
+ShowerAzimuthAngle = 0                  ; in degrees, 0: shower propagates to north, 90: to west
+PrimaryParticleEnergy = 0               ; in eV
+PrimaryParticleType = 0                 ; CORSIKA particle code
+DepthOfShowerMaximum = -1               ; in g/cm^2
+DistanceOfShowerMaximum = -1            ; in cm
+MagneticFieldStrength = 0               ; in Gauss
+MagneticFieldInclinationAngle = 0       ; in degrees
+GeomagneticAngle = 0                    ; in degrees
