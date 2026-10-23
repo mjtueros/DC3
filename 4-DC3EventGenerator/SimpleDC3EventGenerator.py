@@ -1,12 +1,17 @@
-import sys
-import os
 import configparser
 import csv
-import sqlite3
 import math
+import os
+import select
+import sqlite3
+import sys
+import time
+
 from pathlib import Path
 import numpy as np
-import matplotlib.pyplot as plt
+from VisualsEventGenerator import (visualize_cores, visualize_distributions,
+                                   visualize_xmax, visualize_xmaxfits)
+
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -14,7 +19,7 @@ import matplotlib.pyplot as plt
 def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     """
     Checks which antennas fall within the Cherenkov cone.
-    
+
     Parameters:
     -----------
     xmax : numpy array (3,)
@@ -39,11 +44,9 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     # k is the unit vector pointing to where the shower comes from (zenith and azimuth are the direction of origin)
     theta = np.radians(theta_deg)
     phi = np.radians(phi_deg)
-    k = np.array([
-        np.sin(theta) * np.cos(phi), 
-        np.sin(theta) * np.sin(phi), 
-        np.cos(theta)
-    ])
+    k = np.array(
+        [np.sin(theta) * np.cos(phi), np.sin(theta) * np.sin(phi), np.cos(theta)]
+    )
 
     # 2. XMAX TO ANTENNA VECTORS
     # u_ant is the unit vector pointing from the antenna position to Xmax, i.e. towards where the shower comes from
@@ -65,7 +68,7 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     # 4. TRIGGERED ANTENNAS
     # triggered_indices is the list of indices of the antennas that fall within the cone
     triggered_indices = np.where(w_deg <= cone_angle)[0]
-    
+
     # 5. EXPECTED AMPLITUDE (Mock model)
     amplitudes = np.zeros(len(triggered_indices))
     for i, idx in enumerate(triggered_indices):
@@ -75,20 +78,21 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
 
     return triggered_indices, amplitudes
 
+
 # ==============================================================================
 # HEXAGON RANDOM SAMPLING
 # ==============================================================================
 def rand_in_hex(center, size):
     """
     Draws a uniform random point inside a hexagon using the 3-rhombus method.
-    
+
     Parameters:
     -----------
     center : numpy array (3,)
         The (Northing, Westing, Up) center of the hexagon in meters.
     size : float
         The distance from the center to a vertex (radius) in meters.
-        
+
     Returns:
     --------
     point : numpy array (3,)
@@ -96,18 +100,19 @@ def rand_in_hex(center, size):
     """
     vectors = [
         np.array([-1.0, 0.0]),
-        np.array([0.5, math.sqrt(3.0)/2.0]),
-        np.array([0.5, -math.sqrt(3.0)/2.0])
+        np.array([0.5, math.sqrt(3.0) / 2.0]),
+        np.array([0.5, -math.sqrt(3.0) / 2.0]),
     ]
-    
+
     rhombus_idx = np.random.randint(0, 3)
     v1 = vectors[rhombus_idx]
     v2 = vectors[(rhombus_idx + 1) % 3]
-    
+
     u1, u2 = np.random.random(), np.random.random()
     offset = size * (u1 * v1 + u2 * v2)
-    
+
     return np.array([center[0] + offset[0], center[1] + offset[1], center[2]])
+
 
 # ==============================================================================
 # DATABASE SETUP
@@ -286,6 +291,7 @@ def pause_for_review(timeout=5.0):
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
+
 # ==============================================================================
 # MAIN GENERATOR
 # ==============================================================================
@@ -308,10 +314,19 @@ def main():
 
     sec = config["EventGenerator"]
 
-    showers_db = resolve_ini_path(config_file, sec.get("showers_db", fallback="ExampleFluxWithXmax.sqlite"))
-    antennas_csv = resolve_ini_path(config_file, sec.get("antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"))
-    out_db = resolve_ini_path(config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite"))
-    
+    showers_db = resolve_ini_path(
+        config_file, sec.get("showers_db", fallback="ExampleFluxWithXmax.sqlite")
+    )
+    antennas_csv = resolve_ini_path(
+        config_file,
+        sec.get(
+            "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"
+        ),
+    )
+    out_db = resolve_ini_path(
+        config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite")
+    )
+
     center_n = sec.getfloat("center_n", fallback=0.0)
     center_w = sec.getfloat("center_w", fallback=0.0)
     center_u = sec.getfloat("center_u", fallback=1250.0)
@@ -325,18 +340,19 @@ def main():
         sys.exit(1)
     cores_per_event = sec.getint("cores_per_event", fallback=500)
     reuse = sec.getint("reuse", fallback=1)
+
     if cores_per_event < 1 or reuse < 1:
         print("ERROR: cores_per_event and reuse must be at least 1.")
         sys.exit(1)
     
     dist_min = sec.getfloat("dist_min", fallback=0.0)
     dist_max = sec.getfloat("dist_max", fallback=1000.0)
-    
+
     dry_run = sec.getboolean("dry_run", fallback=False)
 
-    print("################################################################################")
+    print("#########################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")
-    print("################################################################################")
+    print("#########################################################")
     print(f"Config File:     {config_file}")
     print(f"Input DB:        {showers_db}")
     print(f"Antennas CSV:    {antennas_csv}")
@@ -349,14 +365,18 @@ def main():
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
-    print("################################################################################\n")
+    print("#########################################################")
 
     if not os.path.isfile(showers_db):
-        print(f"ERROR: Input showers database file not found: '{showers_db}' (resolved relative to config file).")
+        print(
+            f"ERROR: Input showers database file not found: '{showers_db}' (resolved relative to config file)."
+        )
         sys.exit(1)
 
     if not os.path.isfile(antennas_csv):
-        print(f"ERROR: Antenna positions CSV file not found: '{antennas_csv}' (resolved relative to config file).")
+        print(
+            f"ERROR: Antenna positions CSV file not found: '{antennas_csv}' (resolved relative to config file)."
+        )
         sys.exit(1)
 
     # The settings an existing output database must have been written with to be appended to. Paths are
@@ -397,11 +417,17 @@ def main():
 
     print(f"Loading antennas from {antennas_csv}...")
     ant_ids, ant_pos_list = [], []
-    with open(antennas_csv, mode='r') as f:
+    with open(antennas_csv, mode="r") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            ant_ids.append(row['ID'])
-            ant_pos_list.append([float(row['CS_X_North_m']), float(row['CS_Y_West_m']), float(row['CS_Z_Height_m'])])
+            ant_ids.append(row["ID"])
+            ant_pos_list.append(
+                [
+                    float(row["CS_X_North_m"]),
+                    float(row["CS_Y_West_m"]),
+                    float(row["CS_Z_Height_m"]),
+                ]
+            )
     ant_pos = np.array(ant_pos_list)
 
     # 2. INIT DATABASE
@@ -415,8 +441,8 @@ def main():
 
     # Variables for dry-run plotting
     plot_all_cores, plot_triggered_cores = [], []
-    in_zen, in_egy, in_wgt = [], [], []
-    out_zen, out_egy, out_wgt = [], [], []
+    in_zen, in_az, in_egy, in_wgt, in_xmax = [], [], [], [], []
+    out_zen, out_az, out_egy, out_wgt, out_xmax, out_primary = [], [], [], [], [], []
 
     # 3. LOOP EVENTS
     if not os.path.exists(showers_db):
@@ -442,13 +468,14 @@ def main():
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
     cursor_in.execute("SELECT * FROM Showers")
-    
+
     for i, row in enumerate(cursor_in.fetchall()):
         if row['XmaxDistance_km'] is None:
             skipped_count += 1
             continue
-            
-        xmax_dist_km = float(row['XmaxDistance_km'])
+
+        xmax_dist_km = float(row["XmaxDistance_km"])
+        xmax_g_cm2 = float(row["Xmax_g_cm2"])
         if not (dist_min <= xmax_dist_km <= dist_max):
             skipped_count += 1
             continue
@@ -458,16 +485,20 @@ def main():
         azimuth = float(row['Azimuth_Deg'])
         energy_GeV = float(row['Energy_GeV']) 
         original_weight = float(row['ShowerWeight'])
+        primary = str(row["PrimaryType"])
         # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
         natural_weight = row['NaturalWeight'] if 'NaturalWeight' in row.keys() else None
         
+ 
         theta_rad = np.radians(zenith)
         phi_rad = np.radians(azimuth)
-        k_vector = np.array([
-            np.sin(theta_rad) * np.cos(phi_rad),
-            np.sin(theta_rad) * np.sin(phi_rad),
-            np.cos(theta_rad)
-        ])
+        k_vector = np.array(
+            [
+                np.sin(theta_rad) * np.cos(phi_rad),
+                np.sin(theta_rad) * np.sin(phi_rad),
+                np.cos(theta_rad),
+            ]
+        )
 
         # EVENT REUSE LOOP
         for reuse_idx in range(reuse):
@@ -483,6 +514,7 @@ def main():
             # Dry run stats (Input)
             if dry_run:
                 in_zen.append(zenith)
+                in_az.append(azimuth)
                 in_egy.append(energy_GeV)
                 in_wgt.append(original_weight)
             
@@ -528,9 +560,12 @@ def main():
                 plot_all_cores.extend(c for c, _ in tested_cores)
                 if triggered:
                     plot_triggered_cores.append(core_pos)
+                    out_primary.append(primary)
                     out_zen.append(zenith)
+                    out_az.append(azimuth)
                     out_egy.append(energy_GeV)
                     out_wgt.append(new_weight)
+                    out_xmax.append(xmax_g_cm2)
 
             # Save to Database
             if not dry_run:
@@ -545,16 +580,26 @@ def main():
                     new_weight, row['RandomSeed'], cores_per_event, n_triggers, natural_rate
                 ))
                 event_id = cursor.lastrowid
-                
+
                 # Only insert antennas if it actually triggered
                 if triggered:
                     ant_inserts = []
                     for idx, amp in zip(trig_idx, amplitudes):
-                        #ant_pos is in site CS, and core_pos is in site CS too, so the difference is the relative position
+                        # ant_pos is in site CS, and core_pos is in site CS too, so the difference is the relative position
                         rel_pos = ant_pos[idx] - core_pos
-                        ant_inserts.append((event_id, ant_ids[idx], rel_pos[0], rel_pos[1], rel_pos[2], amp))
-                        
-                    cursor.executemany("""
+                        ant_inserts.append(
+                            (
+                                event_id,
+                                ant_ids[idx],
+                                rel_pos[0],
+                                rel_pos[1],
+                                rel_pos[2],
+                                amp,
+                            )
+                        )
+
+                    cursor.executemany(
+                        """
                         INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_N, Rel_W, Rel_U, Amplitude)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, ant_inserts)
@@ -564,7 +609,7 @@ def main():
                 core_inserts = [(event_id, c[0], c[1], int(hit)) for c, hit in tested_cores]
                 cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W, Triggered) VALUES (?, ?, ?, ?)", core_inserts)
                 conn.commit()
-                
+
     conn_in.close()
 
     print(f"\n{success_count} of {event_count} events triggered ({cores_per_event} cores tested per shower).")
@@ -591,50 +636,37 @@ def main():
     # 4. WRAP UP & PLOTTING
     if dry_run:
         print("\nDry Run Complete. Generating plots...")
-        plot_all, plot_trig = np.array(plot_all_cores), np.array(plot_triggered_cores)
-        
-        # --- FIGURE 1: Core Map ---
-        plt.figure(figsize=(10, 8))
-        plt.scatter(ant_pos[:, 0], ant_pos[:, 1], c='black', marker='^', label="Antennas", alpha=1)
-        if len(plot_all) > 0:
-            plt.scatter(plot_all[:, 0], plot_all[:, 1], c='gray', s=5, alpha=0.3, label="Tested Cores")
-        if len(plot_trig) > 0:
-            plt.scatter(plot_trig[:, 0], plot_trig[:, 1], c='red', s=20, label="Triggered Cores")
-            
-        plt.xlabel("Northing (m)")
-        plt.ylabel("Westing (m)")
-        plt.title(f"Dry Run (Cone: {cone_angle}°): {len(plot_trig)} Triggered Events / {len(plot_all)} Tested Cores")
-        plt.legend()
-        plt.axis('equal')
-        plt.grid(True, linestyle="--", alpha=0.6)
-        
-        # --- FIGURE 2: Distributions ---
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-        fig.suptitle(f"Distributions (Cone: {cone_angle}° | Min Trigger: {min_trigger} ants)")
-        
-        # Zenith Plot
-        ax1.hist(in_zen, bins=20, histtype='step', color='black', linewidth=2, label='Input (Unweighted)')
-        ax1.hist(out_zen, bins=20, histtype='step', color='red', linewidth=2, label='Output (Unweighted)')
-        ax1.hist(out_zen, bins=20, weights=out_wgt, color='red', alpha=0.3, label='Output (Weighted)')
-        ax1.set_xlabel("Zenith Angle (Degrees)")
-        ax1.set_ylabel("Counts")
-        ax1.legend()
-        
-        # Energy Plot
-        log_in_egy_eev = np.log10(np.array(in_egy) * 1.0e-9)
-        log_out_egy_eev = np.log10(np.array(out_egy) * 1.0e-9) if len(out_egy) > 0 else []
-        ax2.hist(log_in_egy_eev, bins=15, histtype='step', color='black', linewidth=2, label='Input (Unweighted)')
-        ax2.hist(log_out_egy_eev, bins=15, histtype='step', color='blue', linewidth=2, label='Output (Unweighted)')
-        ax2.hist(log_out_egy_eev, bins=15, weights=out_wgt, color='blue', alpha=0.3, label='Output (Weighted)')
-        ax2.set_xlabel("Log10(Energy [EeV])")
-        ax2.set_ylabel("Counts")
-        ax2.legend()
-        
-        plt.tight_layout()
-        plt.show()
+        visualize_cores(ant_pos, cone_angle, plot_all_cores, plot_triggered_cores)
+        visualize_distributions(
+            cone_angle,
+            min_trigger,
+            in_zen,
+            out_zen,
+            in_az,
+            out_az,
+            in_egy,
+            out_egy,
+            in_xmax,
+            out_xmax,
+            out_wgt,
+        )
+        visualize_xmax(
+            cone_angle,
+            min_trigger,
+            out_zen,
+            out_az,
+            out_egy,
+            out_xmax,
+            out_wgt,
+            out_primary,
+        )
+        visualize_xmaxfits(
+            cone_angle, min_trigger, out_egy, out_xmax, out_wgt, out_primary
+        )
     else:
         conn.close()
         print(f"\nSimulation complete. Saved to {out_db}")
+
 
 if __name__ == "__main__":
     main()
