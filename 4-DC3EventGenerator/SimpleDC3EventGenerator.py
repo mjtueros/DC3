@@ -1,3 +1,5 @@
+import sys
+import os
 import configparser
 import csv
 import math
@@ -9,9 +11,7 @@ import time
 
 from pathlib import Path
 import numpy as np
-from VisualsEventGenerator import (visualize_cores, visualize_distributions,
-                                   visualize_xmax, visualize_xmaxfits)
-
+from VisualsEventGenerator import (visualize_cores, visualize_distributions,visualize_xmax, visualize_xmaxfits)
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -19,7 +19,7 @@ from VisualsEventGenerator import (visualize_cores, visualize_distributions,
 def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     """
     Checks which antennas fall within the Cherenkov cone.
-
+    
     Parameters:
     -----------
     xmax : numpy array (3,)
@@ -68,7 +68,7 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     # 4. TRIGGERED ANTENNAS
     # triggered_indices is the list of indices of the antennas that fall within the cone
     triggered_indices = np.where(w_deg <= cone_angle)[0]
-
+    
     # 5. EXPECTED AMPLITUDE (Mock model)
     amplitudes = np.zeros(len(triggered_indices))
     for i, idx in enumerate(triggered_indices):
@@ -78,21 +78,20 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
 
     return triggered_indices, amplitudes
 
-
 # ==============================================================================
 # HEXAGON RANDOM SAMPLING
 # ==============================================================================
 def rand_in_hex(center, size):
     """
     Draws a uniform random point inside a hexagon using the 3-rhombus method.
-
+    
     Parameters:
     -----------
     center : numpy array (3,)
         The (Northing, Westing, Up) center of the hexagon in meters.
     size : float
         The distance from the center to a vertex (radius) in meters.
-
+        
     Returns:
     --------
     point : numpy array (3,)
@@ -100,19 +99,18 @@ def rand_in_hex(center, size):
     """
     vectors = [
         np.array([-1.0, 0.0]),
-        np.array([0.5, math.sqrt(3.0) / 2.0]),
+        np.array([0.5, math.sqrt(3.0)/2.0]),
         np.array([0.5, -math.sqrt(3.0) / 2.0]),
     ]
-
+    
     rhombus_idx = np.random.randint(0, 3)
     v1 = vectors[rhombus_idx]
     v2 = vectors[(rhombus_idx + 1) % 3]
-
+    
     u1, u2 = np.random.random(), np.random.random()
     offset = size * (u1 * v1 + u2 * v2)
-
+    
     return np.array([center[0] + offset[0], center[1] + offset[1], center[2]])
-
 
 # ==============================================================================
 # DATABASE SETUP
@@ -129,18 +127,23 @@ def init_database(db_path, run_settings=None):
             EventID INTEGER PRIMARY KEY AUTOINCREMENT,
             EventName TEXT,
             ShowerName TEXT,
+            ShowerWeight REAL,
             PrimaryType TEXT,
             Energy_GeV REAL,
-            Zenith REAL,
-            Azimuth REAL,
+            Zenith_Deg REAL,
+            Azimuth_Deg REAL,
+            Model TEXT,
+            RandomSeed TEXT,            
+            Xmax_g_cm2 REAL,
+            XmaxAltitude_km REAL,
+            XmaxDistance_km REAL,
             Core_N REAL,
             Core_W REAL,
             Core_U REAL,
             Xmax_N REAL,
             Xmax_W REAL,
             Xmax_U REAL,
-            Weight REAL,
-            RandomSeed TEXT,
+            EventWeight REAL,
             Tries INTEGER,
             Triggers INTEGER,
             NaturalRate_per_yr REAL
@@ -291,7 +294,6 @@ def pause_for_review(timeout=5.0):
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
-
 # ==============================================================================
 # MAIN GENERATOR
 # ==============================================================================
@@ -326,7 +328,7 @@ def main():
     out_db = resolve_ini_path(
         config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite")
     )
-
+    
     center_n = sec.getfloat("center_n", fallback=0.0)
     center_w = sec.getfloat("center_w", fallback=0.0)
     center_u = sec.getfloat("center_u", fallback=1250.0)
@@ -340,15 +342,16 @@ def main():
         sys.exit(1)
     cores_per_event = sec.getint("cores_per_event", fallback=500)
     reuse = sec.getint("reuse", fallback=1)
-
     if cores_per_event < 1 or reuse < 1:
         print("ERROR: cores_per_event and reuse must be at least 1.")
         sys.exit(1)
     
     dist_min = sec.getfloat("dist_min", fallback=0.0)
     dist_max = sec.getfloat("dist_max", fallback=1000.0)
-
+    
     dry_run = sec.getboolean("dry_run", fallback=False)
+    EventSeed = sec.getint("EventSeed", fallback=np.random.random())
+    np.random.seed(EventSeed)
 
     print("#########################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")
@@ -468,12 +471,12 @@ def main():
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
     cursor_in.execute("SELECT * FROM Showers")
-
+    
     for i, row in enumerate(cursor_in.fetchall()):
         if row['XmaxDistance_km'] is None:
             skipped_count += 1
             continue
-
+            
         xmax_dist_km = float(row["XmaxDistance_km"])
         xmax_g_cm2 = float(row["Xmax_g_cm2"])
         if not (dist_min <= xmax_dist_km <= dist_max):
@@ -489,13 +492,12 @@ def main():
         # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
         natural_weight = row['NaturalWeight'] if 'NaturalWeight' in row.keys() else None
         
- 
         theta_rad = np.radians(zenith)
         phi_rad = np.radians(azimuth)
         k_vector = np.array(
             [
-                np.sin(theta_rad) * np.cos(phi_rad),
-                np.sin(theta_rad) * np.sin(phi_rad),
+            np.sin(theta_rad) * np.cos(phi_rad),
+            np.sin(theta_rad) * np.sin(phi_rad),
                 np.cos(theta_rad),
             ]
         )
@@ -569,23 +571,24 @@ def main():
 
             # Save to Database
             if not dry_run:
+
+                
                 cursor.execute("""
-                    INSERT INTO Events (EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Azimuth, 
-                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Weight, RandomSeed, Tries,
-                                        Triggers, NaturalRate_per_yr)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO Events (EventName, ShowerName, ShowerWeight, PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model, RandomSeed, Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km, 
+                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, EventWeight, Tries , Triggers, NaturalRate_per_yr)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    unique_event_name, row['ShowerName'], row['PrimaryType'], energy_GeV, zenith, azimuth,
-                    core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
-                    new_weight, row['RandomSeed'], cores_per_event, n_triggers, natural_rate
+                    unique_event_name, row['ShowerName'], row['ShowerWeight'], row['PrimaryType'], energy_GeV, zenith, azimuth, row['Model'],
+                    row['RandomSeed'], row['Xmax_g_cm2'], row['XmaxAltitude_km'], row['XmaxDistance_km'], core_pos[0], core_pos[1], core_pos[2],
+                    xmax_pos[0], xmax_pos[1], xmax_pos[2], new_weight, cores_per_event,n_triggers, natural_rate
                 ))
                 event_id = cursor.lastrowid
-
+                
                 # Only insert antennas if it actually triggered
                 if triggered:
                     ant_inserts = []
                     for idx, amp in zip(trig_idx, amplitudes):
-                        # ant_pos is in site CS, and core_pos is in site CS too, so the difference is the relative position
+                        #ant_pos is in site CS, and core_pos is in site CS too, so the difference is the relative position
                         rel_pos = ant_pos[idx] - core_pos
                         ant_inserts.append(
                             (
@@ -597,9 +600,8 @@ def main():
                                 amp,
                             )
                         )
-
-                    cursor.executemany(
-                        """
+                        
+                    cursor.executemany("""
                         INSERT INTO TriggeredAntennas (EventID, AntennaID, Rel_N, Rel_W, Rel_U, Amplitude)
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, ant_inserts)
@@ -609,9 +611,8 @@ def main():
                 core_inserts = [(event_id, c[0], c[1], int(hit)) for c, hit in tested_cores]
                 cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W, Triggered) VALUES (?, ?, ?, ?)", core_inserts)
                 conn.commit()
-
+                
     conn_in.close()
-
     print(f"\n{success_count} of {event_count} events triggered ({cores_per_event} cores tested per shower).")
     if skipped_count:
         print(f"{skipped_count} showers were skipped (no Xmax distance, or outside dist_min to dist_max): they are not in the database or in the natural rate.")
@@ -666,7 +667,6 @@ def main():
     else:
         conn.close()
         print(f"\nSimulation complete. Saved to {out_db}")
-
 
 if __name__ == "__main__":
     main()

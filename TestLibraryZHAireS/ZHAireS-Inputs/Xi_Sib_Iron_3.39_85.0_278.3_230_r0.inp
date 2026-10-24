@@ -1,0 +1,186 @@
+################################################################################
+# ZHAireS Input File generated from SQLite Trigger Database
+# ShowerName        : Xi_Sib_Iron_3.39_85.0_278.3_230
+# EventName         : Xi_Sib_Iron_3.39_85.0_278.3_230_r0
+# EventWeight       : 1.000000e+00
+# CorePosition_NWU  : -449.18 -4428.39 0.00
+# XmaxPosition_NWU  : 25908.51 -169085.01 15297.79
+# XmaxDistance_m    : 167453.14
+################################################################################
+
+##############################################################################
+# Aires simulation header generated with CreateAiresInputHeader                #
+################################################################################
+TaskName Xi_Sib_Iron_3.39_85.0_278.3_230_r0
+PrimaryParticle Iron
+PrimaryEnergy 3.3855 EeV
+PrimaryZenAngle 85.01 deg
+PrimaryAzimAngle 278.35 deg Magnetic
+RandomSeed 0.174330660
+################################################################################
+
+####################################################################################
+# Antenna List created with CreateAntennaListInp v0.1                              #
+####################################################################################
+AddAntenna 1      -74.29     4694.65       29.43
+AddAntenna 2     -578.01     4974.68       37.41
+AddAntenna 3     -569.10     4392.01       37.85
+AddAntenna 5      420.49     4982.42       25.05
+AddAntenna 6      -60.52     4105.86       28.12
+AddAntenna 7      -81.01     5266.10       33.34
+AddAntenna 8     -586.12     5553.17       42.00
+AddAntenna 9     -565.26     3818.09       38.28
+AddAntenna 10      433.71     3827.39       20.11
+AddAntenna 11      413.07     5559.89       29.34
+AddAntenna 12    -1075.16     4682.83       47.01
+AddAntenna 13      923.36     4703.18       15.45
+AddAntenna 14      -61.27     3534.91       29.25
+AddAntenna 15      -89.91     5845.47       38.90
+AddAntenna 16    -1080.78     5258.00       47.42
+AddAntenna 17    -1068.68     4101.56       47.84
+AddAntenna 18      933.17     4124.66       11.40
+AddAntenna 19      918.20     5275.27       21.59
+AddAntenna 20    -1090.76     5835.64       51.28
+AddAntenna 21    -1062.76     3526.19       47.88
+AddAntenna 22      941.01     3545.55       11.60
+AddAntenna 23      911.82     5854.99       26.04
+AddAntenna 26     1426.82     4418.54        7.77
+AddAntenna 27     1421.44     4994.76       12.43
+AddAntenna 28     -587.21     6133.47       47.04
+AddAntenna 29     -560.57     3240.79       38.42
+AddAntenna 30      439.64     3252.02       19.92
+AddAntenna 31      406.51     6138.18       34.98
+AddAntenna 32    -1584.37     5541.40       56.25
+AddAntenna 34     1435.31     3840.60        3.48
+AddAntenna 35     1413.93     5571.02       16.93
+AddAntenna 36      -58.18     2960.45       28.39
+AddAntenna 37      -92.88     6425.35       43.15
+AddAntenna 39     1916.90     4708.69        2.21
+AddAntenna 40    -1095.21     6409.93       55.87
+AddAntenna 41    -1057.38     2946.25       48.23
+AddAntenna 42      945.58     2968.69       10.81
+AddAntenna 43      893.08     6432.12       29.59
+AddAntenna 44     -597.07     6707.14       50.80
+AddAntenna 45     -550.66     2669.72       37.55
+AddAntenna 46      444.81     2680.61       18.90
+AddAntenna 47      401.64     6719.04       37.46
+AddAntenna 50     1930.40     4135.11        0.00
+AddAntenna 51     1920.83     5289.54        8.84
+AddAntenna 52    -1592.67     6118.46       59.86
+AddAntenna 54     1442.30     3264.54        3.80
+AddAntenna 55     1408.68     6152.18       21.69
+AddAntenna 78     -605.75     7282.01       54.74
+AddAntenna 81      400.27     7296.20       40.00
+AddAntenna 85     1904.86     6447.49       17.12
+AddAntenna 88    -1602.77     7277.03       68.82
+AddAntenna 91     1397.46     7309.13       28.39
+AddAntenna 93     -114.22     8157.14       52.29
+AddAntenna 102    -1113.82     8132.30       67.31
+AddAntenna 105      885.98     8167.19       39.24
+AddAntenna 116     -623.60     9013.97       64.27
+AddAntenna 119      373.63     9026.00       50.27
+####################################################################################
+FresnelTime On
+ZHAireS On
+####################################################################################
+# CreateAntennaListInp Finished                                                    #
+####################################################################################
+
+######################################################################################
+# Antenna TimeWindow created with CreateTimeWindowInp v0                             #
+# Xmax to Antenna Distance:167.4531398 km
+######################################################################################
+AntennaTimeMin -250.00 ns
+AntennaTimeMax 750.00 ns
+ExpectedXmaxDist 167453.14 m
+######################################################################################
+
+#Skeleton ##############################################################
+
+#A GRAND SHOWER SKELETON
+#------------------------------------------------------------------------------
+#AIRES-Specific Section
+
+PropagatePrimary On
+
+#Configure the site
+#------------------------------------------------------------------------------
+# Define a new site (note that the Ground Altitude will be overriden if the GroundAlitude directive is used)
+AddSite Xiaodushan 40.99 deg 93.94 deg 1264.00 m
+# Select the new site
+Site Xiaodushan
+#Seting the magnetic field (if it is not set manually, it will look in IGRF13
+GeomagneticField 56.482 uT 61.6 deg 0.1253 deg
+#Setting the date is irrelevant if we manually set the Magnetic Field, but if not, is used to get the magnetic field for that date
+Date 2022 10 26
+
+#Configure the atmosphere
+#------------------------------------------------------------------------------
+AddAtmosModel &EOMD
+##Custom ZHAireS Atmosphere taken from GDAS using gdastool 
+#    Coordinates: lat = +40.14 deg, lon = +94.66 deg  
+#     Time [UTC]: Sat Apr  1 12:00:00 2017 
+#
+  AtmIdent ChaoDunhuang
+
+  AtmName DunhuangFromChao
+
+  AtmDefault Linsley
+
+  AddLayer 0.0000E+00 km  3.6888E+00 km  1.1766E+00 kg/m3  8.3329E-01 kg/m3
+  AddLayer 3.6888E+00 km  9.3776E+00 km  8.3329E-01 kg/m3  4.6029E-01 kg/m3
+  AddLayer 9.3776E+00 km  2.6300E+01 km  4.6029E-01 kg/m3  4.0212E-02 kg/m3
+  AddLayer 2.6300E+01 km  1.0000E+02 km  4.0212E-02 kg/m3  1.2600E-06 kg/m3
+End
+&EOMD
+Atmosphere ChaoDunhuang
+#------------------------------------------------------------------------------
+
+#Set up thinning.
+Thinning 1E-5 Rel
+#This is the optimal WF for zhaires
+ThinningWFactor 0.06
+#ZHAireS only supports TotalShowers 1
+TotalShowers 1
+
+#Table Export
+# increase the number of observing levels 
+#(more detailed longitudinal files, at the expense of a bigger idf data file)
+ObservingLevels 510 100.000 km 1.264 km
+#set the limits of radial tables (a bit useless in inclined showers)
+RLimsTables 100 m 20 km
+
+#dont save ground or lgtpcles if you wont use them (waste space)
+SaveNotInFile lgtpcles All
+SaveNotInFile grdpcles All
+
+#This is for the job to finish before it runs out of wall time in Lyon (48hs)
+MaxCpuTimePerRun 120 min
+RunsPerProcess 23
+#This is to make Aires use the local $TMPDIR for the Scratch. 
+#This will speed up the simulation and reduce the load on sps
+Import TMPDIR
+FileDirectory Scratch {TMPDIR}
+
+#Speed up sims for radio
+#increase the energy threshold up to 1MeV (%saves up to 30% of cpu time)
+ElectronCutEnergy 1 MeV
+ElectronRoughCut 1 MeV
+GammaCutEnergy 1 MeV
+GammaRoughCut 1 MeV
+
+#ZHAireS-Specific Section 
+#(ZHAireS directives are ignored with warnings by Aires, or if ZHAireS Off)
+# Reduce the size of old .dat output
+# leaving only antena number, time and electric field components
+ReducedDATOutput On
+#Creates an additional CoREAS compatible output
+CoREASOutput On
+#The Antenna time window is set by the antenna positions generator.
+#Here we set only the time bin. This is a safe time bin to go to 250Mhz.
+#Nyquist criteria would say this is safe to 1GHz...but ZHAireS is an integrator.
+#not a sample and hold logic.
+TimeDomainBin 0.50 ns
+#
+
+End

@@ -15,7 +15,7 @@ You need to do `gitflow feature publish`, then manually open a pull request to `
 
 # Pipeline Usage
 
-All modules in DC3 are driven by a central `.ini` configuration file (see [Example_dc3_config.ini](file:///home/mjtueros/AntiGravity/DC3/DC3/Example_dc3_config.ini)). Each module has its own section where all configurable parameters are documented with comments.
+All modules in DC3 are driven by a central `.ini` configuration file (see [Example_dc3_config.ini]()). Each module has its own section where all configurable parameters are documented with comments.
 
 The simulation stages can be run sequentially by passing the configuration file:
 
@@ -45,7 +45,7 @@ If the output database of stage 1, 3 or 4 (or of `RebuildAiresFluxDatabase.py`) 
 # Pipeline Modules
 
 - **`1-DC3FluxGenerator`**: Creates initial event geometries and energies according to mathematical sampling distributions into an SQLite database.
-- **`2-DC3ShowerInputGenerator`**: Creates input files to run particle simulations (AIRES, or CORSIKA for CoREAS) to avoid running untriggerable events.
+- **`2-DC3ShowerInputGenerator`**: Creates input files to run particle simulations (AIRES for ZHAireS, or CORSIKA for CoREAS) to avoid running untriggerable events.
 - **`3-DC3XmaxGetter`**: Obtains $X_{\max}$, geometric distance, and altitude for each shower.
 - **`4-DC3EventGenerator`**: Throws random cores inside a hexagonal area over the antenna array, checks Cherenkov cone intersection, evaluates triggers, and renormalizes event weights.
 - **`5-DC3EventEfieldInputGenerator`**: Generates ZHAireS `.inp` files for the triggered events to run radio simulations.

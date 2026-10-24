@@ -29,7 +29,6 @@ import random
 from FluxPlots import plot_flux_distributions
 # The weight that makes each shower represent the natural flux
 from NaturalWeights import natural_weights, SPECTRA, GEOMETRIES
-
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
@@ -144,7 +143,6 @@ Emin = sec.getfloat("Emin", fallback=np.power(10.0, 7.5))
 Emax = sec.getfloat("Emax", fallback=np.power(10.0, 9.6))
 
 show_plots = sec.getboolean("show_plots", fallback=False)
-
 natural_spectrum = sec.get("natural_spectrum", fallback="TALE2018").strip()
 natural_geometry = sec.get("natural_geometry", fallback="flat").strip()
 if natural_spectrum not in SPECTRA:
@@ -153,6 +151,12 @@ if natural_spectrum not in SPECTRA:
 if natural_geometry not in GEOMETRIES:
     print(f"ERROR: Unknown natural_geometry '{natural_geometry}'. Use one of: {', '.join(GEOMETRIES)}.")
     sys.exit(1)
+
+# Setting seed for random number generator
+FluxSeed = sec.getint("FluxSeed", fallback=random.random())
+# Initializing both random number generators, as they are independent.
+random.seed(FluxSeed)
+np.random.seed(FluxSeed)
 
 print("################################################################################")
 print("Flux Generator Configuration")
@@ -168,6 +172,7 @@ print(f"Azimuth:        [{minphi}, {maxphi}] deg")
 print(f"Energy:         [{Emin:.4e}, {Emax:.4e}] GeV")
 print(f"Show Plots:     {show_plots}")
 print(f"Natural Flux:   {natural_spectrum} spectrum, {natural_geometry} geometry")
+print(f"Seed:           {FluxSeed}")
 print("################################################################################\n")
 
 # An existing output database is only replaced if you say so (issue #51). Appending is not offered: the natural
@@ -234,7 +239,6 @@ if show_plots:
 if show_plots:
     print("About to generate the flux. If you are happy with these settings press Enter, if not... kill the program now!")
     sys.stdin.readline()
-
 # ==============================================================================
 # Natural Weights
 # ==============================================================================
