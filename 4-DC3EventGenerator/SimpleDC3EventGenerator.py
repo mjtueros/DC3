@@ -143,8 +143,7 @@ def init_database(db_path, run_settings=None):
             Xmax_N REAL,
             Xmax_W REAL,
             Xmax_U REAL,
-            Weight REAL,
-            RandomSeed TEXT,
+            EventWeight REAL,
             Tries INTEGER,
             Triggers INTEGER,
             NaturalRate_per_yr REAL
@@ -579,9 +578,9 @@ def main():
                                         Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, EventWeight, Tries , Triggers, NaturalRate_per_yr)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    unique_event_name, row['ShowerName'], row['PrimaryType'], energy_GeV, zenith, azimuth, row['Model'],
-row['RandomSeed'], row['Xmax_g_cm2'],row['XmaxAltitude_km'],row['XmaxDistance_km'],                    core_pos[0], core_pos[1], core_pos[2], xmax_pos[0], xmax_pos[1], xmax_pos[2],
-                    new_weight, cores_per_event,n_triggers, natural_rate
+                    unique_event_name, row['ShowerName'], row['ShowerWeight'], row['PrimaryType'], energy_GeV, zenith, azimuth, row['Model'],
+                    row['RandomSeed'], row['Xmax_g_cm2'], row['XmaxAltitude_km'], row['XmaxDistance_km'], core_pos[0], core_pos[1], core_pos[2],
+                    xmax_pos[0], xmax_pos[1], xmax_pos[2], new_weight, cores_per_event,n_triggers, natural_rate
                 ))
                 event_id = cursor.lastrowid
                 

@@ -17,9 +17,9 @@ def view_events_interactively(db_path):
     # 2. Query only events that successfully triggered (Weight > 0)
     # We also grab the kept Core_N and Core_W to highlight them
     cursor.execute("""
-        SELECT EventID, EventName, ShowerName, PrimaryType, Energy_GeV, Zenith, Tries, Triggers, Core_N, Core_W
+        SELECT EventID, EventName, ShowerName, PrimaryType, Energy_GeV, Zenith_Deg, Tries, Triggers, Core_N, Core_W
         FROM Events 
-        WHERE Weight > 0
+        WHERE EventWeight > 0
     """)
     
     triggered_events = cursor.fetchall()
