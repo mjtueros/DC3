@@ -1,10 +1,10 @@
 import json
 import sys
 from pathlib import Path
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+
 
 sys.path.append("./../DU_response_computation/")
 print("modified sys.path")
@@ -34,19 +34,21 @@ CONFIG = {
         "base_model_path": BASE_MODEL_PATH,
         "model_subdir": "moriond/last_train_betercov/",
         "params_file": RF_PARAMS_CONFIG_FILE,
-        "antenna_pos": "/sps/grand/cprevotat/grand/efficiency/gp65_rtksort_NorthWest.txt",
+        "antenna_pos": "./../4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv",
     },
 }
 
 def load_antenna_positions(cfg):
     """
+    Load antenna positions from a CSV file.
+    """
+    
     antenna_pos_path = Path(cfg["paths"]["antenna_pos"])
     if antenna_pos_path.exists():
-        return np.load(antenna_pos_path)
+        return np.genfromtxt(cfg["paths"]["antenna_pos"], delimiter=",")[:, [1, 8, 9, 10]]
     else:
         raise RuntimeError("Antenna positions file not found.")
-    """
-    return np.loadtxt(cfg["paths"]["antenna_pos"])[:, 1:4]
+    
 
 # Loss names that imply an uncertainty head (see scripts/train/train_models.py).
 COVAR_HEAD_LOSSES = {"hetero_nll_cov", "covariance_nll"}
@@ -228,7 +230,7 @@ def generate_shower(entries, model, model_cfg, antenna_pos, t_SN, t_EW, t_Z, tf_
         preds_3d[mask] = preds_3d_valid
         return preds_3d
     
-def main(thetas, phis, eems, xmax_poss, antenna_pos=None):
+def main(thetas, phis, eems, xmax_poss, antenna_pos=None, voltage=True, ADC=True):
     model, model_cfg = load_model_and_config(CONFIG)
     if antenna_pos is None:
         antenna_pos = load_antenna_positions(CONFIG)
@@ -236,9 +238,7 @@ def main(thetas, phis, eems, xmax_poss, antenna_pos=None):
 
     with open(CONFIG["paths"]["params_file"], "r") as f:
         params_rf = json.load(f)
-        print(params_rf)
-        print('\n\n')
-        print(model_cfg)
+
         params_rf["input_sampling_freq"] = params_rf["out_sampling_freq"]
     (_,
      latitude,
@@ -253,7 +253,7 @@ def main(thetas, phis, eems, xmax_poss, antenna_pos=None):
     ratio_fs = 4
     tf_ds = tf#[..., : int(tf.shape[-1] / ratio_fs) + 1]
     all_traces = []
-    print(tf_ds.shape)
+
     for xmax_pos, theta, phi, eem in zip(xmax_poss, thetas, phis, eems):
         inputs = {
             "xmax_pos_x": xmax_pos[0],
@@ -268,57 +268,22 @@ def main(thetas, phis, eems, xmax_poss, antenna_pos=None):
     return all_traces
 
 if __name__ == "__main__":
-    print("Loading ROOT simulation data...")
-    from pulse_emulator.data.opening_rootsim import (
-        _get_all_event_numbers,
-        get_properties_single_event,
-        get_traces_single_event,
-    )
-    print("Loading ROOT simulation data... done.")
-    root_dir = f"{BASE_ROOT}/sim_Xiaodushan_20221025_220000_RUN0_CD_GP300ZHAireS-NJ_0004"
-    all_event_numbers = _get_all_event_numbers(root_dir)
-    print(f"Found {len(all_event_numbers)} events in {root_dir}.")
-    amp = 0
-    while amp < 50:
-        print("hello")
-        event_number = 1791
-        event_number = np.random.choice(all_event_numbers)
-        antenna_pos, properties = get_properties_single_event(root_dir, event_number)
-        all_traces, all_trace_voltage, du_ids, theta, azimuth = get_traces_single_event(root_dir, event_number, voltage=True)
-        amp = np.max(
-                np.max(
-                    np.linalg.norm(all_trace_voltage, axis=1), 
-                    axis=1
-                )
-            )
-        index = np.argmax(
-                np.max(
-                    np.linalg.norm(all_trace_voltage, axis=1), 
-                    axis=1
-                )
-            )
-        polar = np.argmax(
-            np.max(
-                np.abs(all_trace_voltage[index]),
-                axis=1
-            )
-        )
+
+    with open("parameters.json", "r") as f:
+        properties = json.load(f)
+   
 
     generated_trace = main(
         thetas= [properties["zenith"]],
         phis= [properties["azimuth"]],
         eems= [properties["energy_em"]],
-        xmax_poss= [properties["xmax_pos"] + np.array([0, 0, 1264])],
-        antenna_pos=antenna_pos+np.array([0, 0, 1264]),
+        xmax_poss= [np.array(properties["xmax_pos"]) + 0*np.array([0, 0, 1264])],
+        antenna_pos=np.array(properties["AntennaPositions"])+np.array([0, 0, 1264]),
+        voltage=properties["voltage"],
+        ADC=properties["ADC"]
     )
-    generated_trace = np.array(generated_trace)
-    fig, axs = plt.subplots(1,2, figsize=(12, 8))
-    axs = axs.flatten()
-    t = np.arange(generated_trace.shape[-1]) * (1.0 / 500) * 1e3
-    for i,ax in enumerate(axs):
-        ax.set_xlabel("Time (ns)")
-        ax.set_ylabel("Amplitude (µV)")
-        ax.plot(t[250:400], generated_trace[0][i+index-1, polar, 250:400], label='voltage ADC')
-        ax.plot(t[250:400], all_trace_voltage[i+index-1, polar, 250:400], label='True voltage ADC')
-        ax.legend()
-    plt.show()
+
+    generated_trace = np.array(generated_trace[0])
+
+    np.save("generated_trace.npy", generated_trace)
+    

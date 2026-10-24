@@ -65,6 +65,23 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
 
     return triggered_indices, amplitudes
 
+
+# =============================================================================
+# Select antennas with signal above threshold (using the Emulated traces)
+
+def SelectDUs(GeneratedTraces, threshold):
+    """
+    Select antennas with signal above threshold
+    GeneratedTraces : numpy array of shape (Nants, 3, Nsamples)
+    """
+    SelectedDUs = np.where(np.max(GeneratedTraces, axis=(1, 2)) > threshold)[0] # should check that maybe
+
+
+    return SelectedDUs.tolist()
+
+
+# =============================================================================
+
 # ==============================================================================
 # HEXAGON RANDOM SAMPLING
 # ==============================================================================
@@ -336,6 +353,7 @@ def main():
                 
                 xmax_pos = core_pos - (xmax_dist_km * 1000.0 * k_vector)
                 trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
+                
                 
                 if len(trig_idx) >= min_trigger:
                     triggered = True
