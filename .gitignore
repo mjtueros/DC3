@@ -10,3 +10,16 @@ __pycache__/
 pyrefly.toml
 *.pyc
 Issue #* Code Review.html
+
+# Ignore some local environments
+env_311/
+env_312/
+
+# Ignore some mac features
+*.DS_Store
+
+# Ignore produced figures
+*.pdf
+
+# Ignore modified database
+*.sqlite
