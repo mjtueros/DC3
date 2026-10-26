@@ -1,0 +1,58 @@
+{
+  "model": {
+    "name": "model_example",
+    "hidden_size": 450,
+    "n_layers": 3,
+    "activation": "silu",
+    "dropout": 0.1,
+    "skip_connection": 0,
+    "covar_param": "exp",
+    "var_head_hidden": 0.5,
+    "var_head_activation": "silu",
+    "var_head_dropout": 0.0,
+    "var_head_layer_norm": false
+  },
+  "training": {
+    "num_epochs": 300,
+    "l1_reg": 0.0,
+    "eval_every": 2,
+    "save_every": 4,
+    "early_stopping_patience": 90,
+    "seed": 43,
+    "loss": "hetero_nll_cov",
+    "scheduler": {
+      "type": "cosine",
+      "T_max": 300
+    },
+    "lr": 0.001,
+    "weight_decay": 1e-5,
+    "beta_nll": 0.5,
+    "beta_nll_normalize": true,
+    "head_lr": 0.005,
+    "head_weight_decay": 0.0,
+    "head_warmup_epochs": 10
+  },
+  "data": {
+    "path": "./",
+    "batch_size": 512,
+    "inputs": [
+      "zenith",
+      "cos_azimuth",
+      "sin_azimuth",
+      "omega",
+      "cos_eta",
+      "sin_eta",
+      "l",
+      "energy_em",
+      "xmax_pos_z"
+    ],
+    "fold":"mean",
+    "outputs": [
+      "a",
+      "b",
+      "c",
+      "phase_q",
+      "phase_p"
+    ]
+  }
+}

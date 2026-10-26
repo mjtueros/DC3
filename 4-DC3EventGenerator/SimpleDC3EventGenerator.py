@@ -13,6 +13,9 @@ from pathlib import Path
 import numpy as np
 from VisualsEventGenerator import (visualize_cores, visualize_distributions,visualize_xmax, visualize_xmaxfits)
 
+sys.path.append("./pulse_emulator/")
+import AntennaInterpolator as emulator_AntennaInterpolator # Arsène’s emulator to interpolate the traces at given positions
+
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
 # ==============================================================================
@@ -77,6 +80,30 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
         amplitudes[i] = (1.0 / (d_km**2 + 0.1)) * math.cos(math.radians(angle))
 
     return triggered_indices, amplitudes
+
+
+# =============================================================================
+# Select antennas with signal above threshold (using the Emulated traces)
+
+def SelectDUs(GeneratedTraces, threshold, du_ids):
+    """
+    Select antennas with signal above threshold
+    GeneratedTraces : numpy array of shape (Nants, 3, Nsamples)
+    threshold : float
+        The signal threshold (E-field or voltage ADC ?)
+    du_ids : list
+        The IDs of the DUs to consider.
+    
+    Returns:
+    list of DU_ids that meets the selected criteria
+    """
+    SelectedDUs = np.where(np.max(GeneratedTraces, axis=(1, 2)) > threshold)[0] # should check that maybe
+    triggering_DUs = du_ids[SelectedDUs]
+
+    return triggering_DUs
+
+
+# =============================================================================
 
 # ==============================================================================
 # HEXAGON RANDOM SAMPLING
@@ -351,6 +378,10 @@ def main():
     
     dry_run = sec.getboolean("dry_run", fallback=False)
     EventSeed = sec.getint("EventSeed", fallback=np.random.random())
+    path_python_emulator = resolve_ini_path(
+        config_file, sec.get("path_pulse_emulator", fallback="/sps/grand/cprevotat/.conda/test_arsene/bin/python3.11")
+    )
+
     np.random.seed(EventSeed)
 
     print("#########################################################")
@@ -489,6 +520,14 @@ def main():
         energy_GeV = float(row['Energy_GeV']) 
         original_weight = float(row['ShowerWeight'])
         primary = str(row["PrimaryType"])
+
+        ######## get the electromagnetic energy of the shower, # this needs to be changed but I want it working for now for testing (I don’t think it’s available yet)
+        try:
+            eem_energy_GeV = float(row['Energy_EM_GeV'])
+        except KeyError:
+            eem_energy_GeV = energy_GeV 
+        ########
+
         # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
         natural_weight = row['NaturalWeight'] if 'NaturalWeight' in row.keys() else None
         
@@ -527,6 +566,10 @@ def main():
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
                 trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
+
+                path_emulator = "4-DC3EventGenerator/pulse_emulator/scripts/" # should go in the ini file maybe ?
+                emulated_traces = emulator_AntennaInterpolator(path_emulator, primary, np.radians(zenith), np.radians(azimuth), E_em_GeV, xmax_try, ant_pos, path_to_python_emulator, voltage = True, ADC = True)
+                triggering_dus = select_emulated_traces(emulated_traces, threshold, N_min_DUs, ant_ids)
                 
                 hit = len(trig_try) >= min_trigger
                 tested_cores.append((core_try, hit))

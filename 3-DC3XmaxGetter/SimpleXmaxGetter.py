@@ -234,7 +234,7 @@ SHOWERS_TABLE_SQL = """
         ShowerNumber INTEGER PRIMARY KEY,
         ShowerName TEXT,
         RandomSeed TEXT,
-        ShowerWeight REAL,
+        ShowerWeight REAL,f
         PrimaryType TEXT,
         Energy_GeV REAL,
         Zenith_Deg REAL,
