@@ -441,7 +441,7 @@ def main():
 
     # Variables for dry-run plotting
     plot_all_cores, plot_triggered_cores = [], []
-    in_zen, in_az, in_egy, in_wgt, in_xmax = [], [], [], [], []
+    in_zen, in_az, in_egy, in_wgt = [], [], [], []
     out_zen, out_az, out_egy, out_wgt, out_xmax, out_primary = [], [], [], [], [], []
 
     # 3. LOOP EVENTS
@@ -646,7 +646,6 @@ def main():
             out_az,
             in_egy,
             out_egy,
-            in_xmax,
             out_xmax,
             out_wgt,
         )
