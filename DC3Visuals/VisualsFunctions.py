@@ -1,6 +1,5 @@
 """Visuals related to the DC3 Event Generator."""
 
-import configparser
 import csv
 import math
 import os
@@ -88,7 +87,7 @@ def uncertainty_std_gumbel(popt, pcov):
     return np.sqrt(var_std)
 
 
-def visualize_cores(ant_pos, plot_all_cores, plot_triggered_cores, path, name):
+def visualize_cores(config, ant_pos, plot_all_cores, plot_triggered_cores, name):
     """Visualizes antenna positions and core distributions for a given cone angle.
 
     Args:
@@ -99,7 +98,7 @@ def visualize_cores(ant_pos, plot_all_cores, plot_triggered_cores, path, name):
     Saves a scatter plot (ExampleCores.pdf) in ./4-DC3EventGenerator/figures/
     showing antennas, tested cores (gray), and triggered cores (red).
     """
-    path_figures = Path(path)
+    path_figures = Path(config.fig_dir)
     path_figures.mkdir(parents=True, exist_ok=True)
     plot_all, plot_trig = np.array(plot_all_cores), np.array(plot_triggered_cores)
 
@@ -129,10 +128,11 @@ def visualize_cores(ant_pos, plot_all_cores, plot_triggered_cores, path, name):
     plt.axis("equal")
     plt.grid(True, linestyle="--", alpha=0.6)
     plt.tight_layout()
-    plt.savefig(path_figures / f"ExampleCores_{name}.pdf")
+    if config.save_fig:
+        plt.savefig(path_figures / f"ExampleCores_{name}.pdf")
 
 
-def visualize_distributions(out_zen, out_az, out_egy, out_xmax, out_wgt, path, name):
+def visualize_distributions(config, out_zen, out_az, out_egy, out_xmax, out_wgt, name):
     """Plots distributions (zenith, azimuth, energy, Xmax) for input vs. output events.
 
     Args:
@@ -145,7 +145,7 @@ def visualize_distributions(out_zen, out_az, out_egy, out_xmax, out_wgt, path, n
     Saves four PDF plots (Zenith/Azimuth/Energy/Xmax) in ./4-DC3EventGenerator/figures/
     comparing input (black) and output (red/blue) distributions, both unweighted and weighted.
     """
-    path_figures = Path(path)
+    path_figures = Path(config.fig_dir)
     path_figures.mkdir(parents=True, exist_ok=True)
 
     # Zenith Plot
@@ -171,7 +171,8 @@ def visualize_distributions(out_zen, out_az, out_egy, out_xmax, out_wgt, path, n
     ax.set_ylabel("Counts")
     ax.legend()
     plt.tight_layout()
-    plt.savefig(path_figures / f"ExampleZenithDistribution_{name}.pdf")
+    if config.save_fig:
+        plt.savefig(path_figures / f"ExampleZenithDistribution_{name}.pdf")
 
     # Azimuth Plot
     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
@@ -196,7 +197,8 @@ def visualize_distributions(out_zen, out_az, out_egy, out_xmax, out_wgt, path, n
     ax.set_ylabel("Counts")
     ax.legend()
     plt.tight_layout()
-    plt.savefig(path_figures / f"ExampleAzimuthDistribution_{name}.pdf")
+    if config.save_fig:
+        plt.savefig(path_figures / f"ExampleAzimuthDistribution_{name}.pdf")
 
     # Energy Plot
     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
@@ -222,7 +224,8 @@ def visualize_distributions(out_zen, out_az, out_egy, out_xmax, out_wgt, path, n
     ax.set_ylabel("Counts")
     ax.legend()
     plt.tight_layout()
-    plt.savefig(path_figures / f"ExampleEnergyDistribution_{name}.pdf")
+    if config.save_fig:
+        plt.savefig(path_figures / f"ExampleEnergyDistribution_{name}.pdf")
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
     fig.suptitle(f"Distributions")
@@ -246,11 +249,12 @@ def visualize_distributions(out_zen, out_az, out_egy, out_xmax, out_wgt, path, n
     ax.set_ylabel("Counts")
     ax.legend()
     plt.tight_layout()
-    plt.savefig(path_figures / f"ExampleXmaxDistribution_{name}.pdf")
+    if config.save_fig:
+        plt.savefig(path_figures / f"ExampleXmaxDistribution_{name}.pdf")
 
 
-def visualize_xmax(
-    out_zen, out_az, out_egy, out_xmax, out_wgt, out_primary, path, name
+def visualize_xmax(config,
+    out_zen, out_az, out_egy, out_xmax, out_wgt, out_primary, name
 ):
     """Plots Xmax distributions and relative differences for proton and iron primaries across energy bins.
 
@@ -266,7 +270,7 @@ def visualize_xmax(
     - Xmax distributions (unweighted and weighted) per energy bin.
     - Relative differences between unweighted and weighted Xmax counts.
     """
-    path_figures = Path(path + "/xmax")
+    path_figures = Path(config.fig_dir + "/xmax")
     path_figures.mkdir(parents=True, exist_ok=True)
 
     # Use arrays instead of lists
@@ -337,7 +341,8 @@ def visualize_xmax(
         plt.xlim((480, 1200))
         ax.legend()
         plt.tight_layout()
-        plt.savefig(path_figures / f"Xmax_{E_hist[1][i]:.1f}_{name}.pdf")
+        if config.save_fig:
+            plt.savefig(path_figures / f"Xmax_{E_hist[1][i]:.1f}_{name}.pdf")
 
         fig, ax = plt.subplots(1, 1)
         fig.subplots_adjust(left=0.13, bottom=0.2, right=0.95, top=0.9)
@@ -377,11 +382,12 @@ def visualize_xmax(
         plt.xlim((480, 1200))
         plt.ylim((0, 1))
         ax.legend()
-        plt.savefig(path_figures / f"Xmax_drel_{E_hist[1][i]:.1f}_{name}.pdf")
         plt.tight_layout()
+        if config.save_fig:
+            plt.savefig(path_figures / f"Xmax_drel_{E_hist[1][i]:.1f}_{name}.pdf")
 
 
-def visualize_xmaxfits(out_egy, out_xmax, out_wgt, out_primary, path, name):
+def visualize_xmaxfits(config, out_egy, out_xmax, out_wgt, out_primary, name):
     """Fit Generalized Gumbel distributions to Xmax data and compares with hadronic models.
 
     Args:
@@ -399,7 +405,7 @@ def visualize_xmaxfits(out_egy, out_xmax, out_wgt, out_primary, path, name):
     - Plots sigma Xmax vs. energy with the same model comparisons.
     - Saves comparison plots (Xmax_mean_wgt_comp.pdf, Xmax_sigma_wgt_comp.pdf).
     """
-    path_figures = Path(path + "/xmax")
+    path_figures = Path(config.fig_dir + "/xmax")
     path_figures.mkdir(parents=True, exist_ok=True)
     path_data = Path("./4-DC3EventGenerator/figures/xmax_data")
 
@@ -552,7 +558,8 @@ def visualize_xmaxfits(out_egy, out_xmax, out_wgt, out_primary, path, name):
         plt.legend()
         plt.xlim((480, 1200))
         plt.tight_layout()
-        plt.savefig(path_figures / f"Xmax_fit_{E_hist[1][i]:.1f}_{name}.pdf")
+        if config.save_fig:
+            plt.savefig(path_figures / f"Xmax_fit_{E_hist[1][i]:.1f}_{name}.pdf")
 
     # Mean Xmax as a function of energy
 
@@ -622,7 +629,8 @@ def visualize_xmaxfits(out_egy, out_xmax, out_wgt, out_primary, path, name):
     ax.set_ylim(420, 900)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(path_figures / f"Xmax_mean_wgt_comp_{name}.pdf")
+    if config.save_fig:
+        plt.savefig(path_figures / f"Xmax_mean_wgt_comp_{name}.pdf")
 
     # Sigma Xmax as a function of energy
 
@@ -696,4 +704,5 @@ def visualize_xmaxfits(out_egy, out_xmax, out_wgt, out_primary, path, name):
     ax.set_ylim(0, 100)
     plt.legend()
     plt.tight_layout()
-    plt.savefig(path_figures / f"Xmax_sigma_wgt_comp_{name}.pdf")
+    if config.save_fig:
+        plt.savefig(path_figures / f"Xmax_sigma_wgt_comp_{name}.pdf")

@@ -8,6 +8,9 @@ import select
 import sqlite3
 import sys
 import time
+from dataclasses import dataclass
+from typing import Optional
+import matplotlib.pyplot as plt
 
 import numpy as np
 from VisualsFunctions import (
@@ -16,22 +19,17 @@ from VisualsFunctions import (
     visualize_xmax,
     visualize_xmaxfits,
 )
+from ConfigReader import load_config
 
-# FUNCTIONS
 
-
-def resolve_ini_path(config_file_path, path_str):
-    """
-    Resolves a path from the INI file. If relative, it is strictly resolved
-    relative to the directory containing the INI file.
-    """
-    if not path_str or not path_str.strip():
-        return ""
-    path_str = path_str.strip()
-    if os.path.isabs(path_str):
-        return path_str
-    config_dir = os.path.dirname(os.path.abspath(config_file_path))
-    return os.path.abspath(os.path.join(config_dir, path_str))
+@dataclass
+class ShowerVectors:
+    in_zen: np.ndarray  # Zenith angles
+    in_az: np.ndarray   # Azimuth angles
+    in_egy: np.ndarray  # Energies
+    in_xmax: np.ndarray # Xmax values
+    in_wgt: np.ndarray  # Weights
+    in_primary: Optional[np.ndarray] = None  # Optional
 
 
 # MAIN VISUALS
@@ -47,50 +45,21 @@ def main():
         print(f"ERROR: Configuration file '{config_file}' not found.")
         sys.exit(1)
 
-    config = configparser.ConfigParser()
-    config.read(config_file)
-
-    if "Visuals" not in config:
-        print(f"ERROR: Section [Visuals] not found in '{config_file}'.")
-        sys.exit(1)
-
-    sec = config["Visuals"]
-
-    showers_db = resolve_ini_path(
-        config_file, sec.get("showers_db", fallback="ExampleFluxWithDummyXmax.sqlite")
-    )
-    events_db = resolve_ini_path(
-        config_file, sec.get("events_db", fallback="ExampleDummyTriggeredEvents.sqlite")
-    )
-    antennas_csv = resolve_ini_path(
-        config_file,
-        sec.get(
-            "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"
-        ),
-    )
-
-    center_n = sec.getfloat("center_n", fallback=0.0)
-    center_w = sec.getfloat("center_w", fallback=0.0)
-    center_u = sec.getfloat("center_u", fallback=1250.0)
-    showers_fig = sec.getboolean("showers_fig", fallback=False)
-    events_fig = sec.getboolean("events_fig", fallback=False)
-
-    fig_dir = resolve_ini_path(
-        config_file,
-        sec.get("fig_dir", fallback="./DC3Visuals/figures"),
-    )
+    config = load_config(config_file)
 
     print("#########################################################")
-    print(" Event Generator (Core Drop & Trigger Simulator)")
+    print(" Visuals")
     print("#########################################################")
     print(f"Config File:     {config_file}")
-    print(f"Showers DB:      {showers_db}")
-    print(f"Events DB:       {events_db}")
-    print(f"Antennas CSV:    {antennas_csv}")
-    print(f"Hexagon Center:  ({center_n}, {center_w}, {center_u}) m")
-    print(f"Showers figures: {showers_fig}")
-    print(f"Events figures:  {events_fig}")
-    print(f"Dir Figures:     {fig_dir}")
+    print(f"Showers DB:      {config.showers_db}")
+    print(f"Events DB:       {config.events_db}")
+    print(f"Antennas CSV:    {config.antennas_csv}")
+    print(f"Hexagon Center:  ({config.center_n}, {config.center_w}, {config.center_u}) m")
+    print(f"Showers figures: {config.showers_fig}")
+    print(f"Events figures:  {config.events_fig}")
+    print(f"Save figures:    {config.save_fig}")
+    print(f"Show figures:    {config.show_fig}")
+    print(f"Dir Figures:     {config.fig_dir}")
     print("#########################################################")
 
     # 1. DECLARE variables for plotting
@@ -99,19 +68,19 @@ def main():
 
     # 2. LOAD ANTENNAS
 
-    if not os.path.isfile(antennas_csv):
+    if not os.path.isfile(config.antennas_csv):
         print(
-            f"ERROR: Antenna positions CSV file not found: '{antennas_csv}' (resolved relative to config file)."
+            f"ERROR: Antenna positions CSV file not found: '{config.antennas_csv}' (resolved relative to config file)."
         )
         sys.exit(1)
 
-    if not os.path.exists(antennas_csv):
-        print(f"ERROR: Antenna positions CSV '{antennas_csv}' not found.")
+    if not os.path.exists(config.antennas_csv):
+        print(f"ERROR: Antenna positions CSV '{config.antennas_csv}' not found.")
         sys.exit(1)
 
-    print(f"Loading antennas from {antennas_csv}...")
+    print(f"Loading antennas from {config.antennas_csv}...")
     ant_ids, ant_pos_list = [], []
-    with open(antennas_csv, mode="r") as f:
+    with open(config.antennas_csv, mode="r") as f:
         reader = csv.DictReader(f)
         for row in reader:
             ant_ids.append(row["ID"])
@@ -126,26 +95,26 @@ def main():
 
     # 3. LOOP THROUGH DATABASES
 
-    center_pos = np.array([center_n, center_w, center_u])
+    center_pos = np.array([config.center_n, config.center_w, config.center_u])
 
     # SHOWERS
-    if showers_fig:
+    if config.showers_fig:
         name = "showers"
 
-        if not os.path.isfile(showers_db):
+        if not os.path.isfile(config.showers_db):
             print(
-                f"ERROR: Input showers database file not found: '{showers_db}' (resolved relative to config file)."
+                f"ERROR: Input showers database file not found: '{config.showers_db}' (resolved relative to config file)."
             )
             sys.exit(1)
 
-        if not os.path.exists(showers_db):
-            print(f"ERROR: Showers database '{showers_db}' not found.")
+        if not os.path.exists(config.showers_db):
+            print(f"ERROR: Showers database '{config.showers_db}' not found.")
             sys.exit(1)
 
-        print(f"\nProcessing showers from {showers_db}")
+        print(f"\nProcessing showers from {config.showers_db}")
 
         # Read showers from the SQLite database
-        conn_in = sqlite3.connect(showers_db)
+        conn_in = sqlite3.connect(config.showers_db)
         conn_in.row_factory = sqlite3.Row
         cursor_in = conn_in.cursor()
         cursor_in.execute("SELECT * FROM Showers")
@@ -170,30 +139,30 @@ def main():
         conn_in.close()
 
         print("\nReading complete. Generating plots...")
-        visualize_distributions(in_zen, in_az, in_egy, in_xmax, in_wgt, fig_dir, name)
-        visualize_xmax(
-            in_zen, in_az, in_egy, in_xmax, in_wgt, in_primary, fig_dir, name
+        visualize_distributions(config, in_zen, in_az, in_egy, in_xmax, in_wgt, name)
+        visualize_xmax(config,
+            in_zen, in_az, in_egy, in_xmax, in_wgt, in_primary, name
         )
-        visualize_xmaxfits(in_egy, in_xmax, in_wgt, in_primary, fig_dir, name)
+        visualize_xmaxfits(config, in_egy, in_xmax, in_wgt, in_primary, name)
 
     # EVENTS
-    if events_fig:
+    if config.events_fig:
         name = "events"
 
-        if not os.path.isfile(events_db):
+        if not os.path.isfile(config.events_db):
             print(
-                f"ERROR: Input events database file not found: '{events_db}' (resolved relative to config file)."
+                f"ERROR: Input events database file not found: '{config.events_db}' (resolved relative to config file)."
             )
             sys.exit(1)
 
-        if not os.path.exists(events_db):
-            print(f"ERROR: Showers database '{events_db}' not found.")
+        if not os.path.exists(config.events_db):
+            print(f"ERROR: Showers database '{config.events_db}' not found.")
             sys.exit(1)
 
-        print(f"\nProcessing events from {events_db}")
+        print(f"\nProcessing events from {config.events_db}")
 
         # Read events from the SQLite database
-        conn_in = sqlite3.connect(events_db)
+        conn_in = sqlite3.connect(config.events_db)
         conn_in.row_factory = sqlite3.Row
         cursor_in = conn_in.cursor()
         cursor_in.execute("SELECT * FROM Events")
@@ -221,7 +190,7 @@ def main():
         conn_in.close()
 
         # Read all tested cores from the SQLite database
-        conn_in = sqlite3.connect(events_db)
+        conn_in = sqlite3.connect(config.events_db)
         conn_in.row_factory = sqlite3.Row
         cursor_in = conn_in.cursor()
         cursor_in.execute("SELECT * FROM TestedCores")
@@ -236,12 +205,15 @@ def main():
         conn_in.close()
 
         print("\nReading complete. Generating plots...")
-        visualize_cores(ant_pos, plot_all_cores, plot_triggered_cores, fig_dir, name)
-        visualize_distributions(in_zen, in_az, in_egy, in_xmax, in_wgt, fig_dir, name)
-        visualize_xmax(
-            in_zen, in_az, in_egy, in_xmax, in_wgt, in_primary, fig_dir, name
+        visualize_cores(config, ant_pos, plot_all_cores, plot_triggered_cores, name)
+        visualize_distributions(config, in_zen, in_az, in_egy, in_xmax, in_wgt, name)
+        visualize_xmax(config,
+            in_zen, in_az, in_egy, in_xmax, in_wgt, in_primary, name
         )
-        visualize_xmaxfits(in_egy, in_xmax, in_wgt, in_primary, fig_dir, name)
+        visualize_xmaxfits(config, in_egy, in_xmax, in_wgt, in_primary, name)
+
+    if config.show_fig:
+        plt.show()
 
 
 if __name__ == "__main__":
