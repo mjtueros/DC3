@@ -9,10 +9,8 @@ __pycache__/
 pyrefly.toml
 
 # Ignore the local environment directories
-bin/
-lib/
-pyvenv.cfg
-share/
+env_311/
+env_312/
 
 # Ignore some mac features
 *.DS_Store
