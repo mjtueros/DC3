@@ -8,15 +8,28 @@ from pathlib import Path
 
 
 
-def AntennaInterpolator(MainPath, primary, zenith, azimuth, E_prim, XmaxPos, AntennaPositions, PathToPython, voltage = True, ADC = True):
+def AntennaInterpolator(MainPath, zenith, azimuth, E_em, XmaxPos, AntennaPositions, PathToPython, voltage = True, ADC = True):
 
 
-    du_ids = AntennaPositions[:, 0]
+    """
+    Assume XmaxPos and AntennaPositinos are given with z = 0 at site
+    Parameters:
+    MainPath: Path to this code from DC3 (or from where this code is run)
+    zenith : zenith angle in rad
+    azimuth : azimuth angle in rad
+    E_em : electromagnetic energy of the shower GeV
+    XmaxPos : position of the shower maximum in m, shape (3,)
+    AntennaPositions : positions of the antennas in m, shape (Nants, 3)
+    PathToPython : path to the python interpreter to run the RunPulseEmulator.py script
+
+    Returns du_ids of the antennas with a signal above threshold (50 uV/m)
+    """
+
+    XmaxPos = XmaxPos + np.array([0, 0, 1264]) # add the altitude of the site to the Xmax position    
+    AntennaPositions = AntennaPositions + np.array([0, 0, 1264]) # add the altitude of the site to the antenna positions
 
     PathToRun = os.path.join(MainPath, 'RunPulseEmulator.py')
-    print("main path : ", PathToRun)
 
-    print("hello")
 
     """
     interpolate the signal at given antenna positions
@@ -26,12 +39,11 @@ def AntennaInterpolator(MainPath, primary, zenith, azimuth, E_prim, XmaxPos, Ant
     path_to_parameters = os.path.join(MainPath, 'scripts/parameters.json')
     with open(path_to_parameters, "w") as f:
         inputs = {
-            "primary": primary,
             "zenith": zenith,
             "azimuth": azimuth,
-            "energy_em": E_prim,
+            "energy_em": E_em,
             "xmax_pos": XmaxPos.tolist(),
-            "AntennaPositions": AntennaPositions[:, 1:4].tolist(),
+            "AntennaPositions": AntennaPositions.tolist(),
             "voltage": voltage,
             "ADC": ADC
         }
@@ -43,9 +55,6 @@ def AntennaInterpolator(MainPath, primary, zenith, azimuth, E_prim, XmaxPos, Ant
     capture_output=True,
     text=True
 )
-    print("Return code:", result.returncode)
-    print("STDOUT:", result.stdout)
-    print("STDERR:", result.stderr)
 
 
     ### load the traces 
@@ -55,20 +64,6 @@ def AntennaInterpolator(MainPath, primary, zenith, azimuth, E_prim, XmaxPos, Ant
     return du_ids[SelectedDUs]
 
 
-
-
-
-def SelectDUs(GeneratedTraces, threshold):
-    """
-    Select antennas with signal above threshold
-    """
-    print(np.max(GeneratedTraces))
-    SelectedDUs = np.where(np.max(GeneratedTraces, axis=(1, 2)) > threshold)[0] # should check that maybe
-    #plt.figure()
-    #plt.scatter([i for i in range(GeneratedTraces.shape[2])], GeneratedTraces[SelectedDUs[0], 0, :])
-    #plt.show()
-
-    return SelectedDUs.tolist()
 
 
 
@@ -90,9 +85,7 @@ if __name__ == "__main__":
 
     AntennaPositions = np.loadtxt("/sps/grand/cprevotat/grand/efficiency/gp65_rtksort_NorthWest.txt")
 
-    print("Antenna positions : ", AntennaPositions)
 
-    
 
     selected_dus = AntennaInterpolator("./",
     "protons",
@@ -106,4 +99,3 @@ if __name__ == "__main__":
     ADC=ADC
     )
 
-    print("Selected DUs:", selected_dus)

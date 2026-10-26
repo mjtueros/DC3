@@ -7,14 +7,10 @@ import torch
 
 
 sys.path.append("./../DU_response_computation/")
-print("modified sys.path")
 from make_input import load_input_params_from_dict
-print("imported load_input_params_from_dict")
 
 from pulse_emulator.data.input_formating import make_input_array
-print("imported make_input_array")
 from pulse_emulator.surrogate.inference import pred_trace_kxB, predict_voltage
-print("imported pred_trace_kxB, predict_voltage")
 from pulse_emulator.surrogate.models import (
     COVAR_PARAM_DEFAULT,
     MLP_metamodel,
@@ -22,7 +18,6 @@ from pulse_emulator.surrogate.models import (
     infer_head_arch,
     remap_legacy_head_keys,
 )
-print("imported MLP_metamodel, MLPClassifierGated, infer_head_arch, remap_legacy_head_keys")
 
 
 sys.path.append('scripts/')  
@@ -277,8 +272,8 @@ if __name__ == "__main__":
         thetas= [properties["zenith"]],
         phis= [properties["azimuth"]],
         eems= [properties["energy_em"]],
-        xmax_poss= [np.array(properties["xmax_pos"]) + 0*np.array([0, 0, 1264])],
-        antenna_pos=np.array(properties["AntennaPositions"])+np.array([0, 0, 1264]),
+        xmax_poss= [np.array(properties["xmax_pos"])],
+        antenna_pos=np.array(properties["AntennaPositions"]),
         voltage=properties["voltage"],
         ADC=properties["ADC"]
     )

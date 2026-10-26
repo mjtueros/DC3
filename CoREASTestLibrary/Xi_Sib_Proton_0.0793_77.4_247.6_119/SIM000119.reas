@@ -1,0 +1,45 @@
+# CoREAS V1.4 by Tim Huege <tim.huege@kit.edu> with contributions by Marianne Ludwig and Clancy James - parameter file
+
+# parameters setting up the spatial observer configuration:
+
+CoreCoordinateNorth = 0			; in cm
+CoreCoordinateWest = 0			; in cm
+CoreCoordinateVertical = 126400			; in cm
+
+# parameters setting up the temporal observer configuration:
+
+TimeResolution = 5e-10				; in s
+AutomaticTimeBoundaries = 4e-07			; 0: off, x: automatic boundaries with width x in s
+TimeLowerBoundary = -1				; in s, only if AutomaticTimeBoundaries set to 0
+TimeUpperBoundary = 1				; in s, only if AutomaticTimeBoundaries set to 0
+ResolutionReductionScale = 0			; 0: off, x: decrease time resolution linearly every x cm in radius
+
+# parameters setting up the simulation functionality:
+GroundLevelRefractiveIndex = 1.000312		; specify refractive index at 0 m asl
+
+# event information for Offline simulations:
+
+EventNumber = 119
+RunNumber = 119
+GPSSecs = 0
+GPSNanoSecs = 0
+CoreEastingOffline = 0				; in meters
+CoreNorthingOffline = 0				; in meters
+CoreVerticalOffline = 0				; in meters
+OfflineCoordinateSystem =  Reference
+RotationAngleForMagfieldDeclination = 0		; in degrees
+Comment =
+
+# event information for your convenience and backwards compatibility with other software, these values are not used as input parameters for the simulation:
+
+ShowerZenithAngle = 77.39296228			; in degrees
+ShowerAzimuthAngle = 67.55449142		; in degrees, 0: shower propagates to north, 90: to west
+PrimaryParticleEnergy = 7.9260576e+16			; in eV
+PrimaryParticleType = 14			; as defined in CORSIKA
+DepthOfShowerMaximum = 643.6369591		; slant depth in g/cm^2
+DistanceOfShowerMaximum = 6031600		; geometrical distance of shower maximum from core in cm
+MagneticFieldStrength = 0.5648198728			; in Gauss
+MagneticFieldInclinationAngle = 61.59999993		; in degrees, >0: in northern hemisphere, <0: in southern hemisphere
+GeomagneticAngle = 68.33296808			; in degrees
+CorsikaFilePath = ./
+CorsikaParameterFile = SIM000119.inp

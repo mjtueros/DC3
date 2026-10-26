@@ -8,12 +8,14 @@ With no arguments, the script shows the original Xmax diagnostic plots and
 prints the correct command-line syntax.
 """
 
+from asyncio import unix_events
 import sys
 import os
 import time
 import select
 import configparser
 import sqlite3
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
@@ -31,6 +33,38 @@ def resolve_ini_path(config_file_path, path_str):
         return path_str
     config_dir = os.path.dirname(os.path.abspath(config_file_path))
     return os.path.abspath(os.path.join(config_dir, path_str))
+
+def ask_about_existing_output(db_path, cannot_append):
+    """
+    Asks what to do with an output database that already exists (issue #51): overwrite it, append to it, or
+    exit without touching it. cannot_append is None when appending is possible, or the reason it is not,
+    and then only overwrite and exit are offered. The answer is read from the standard input, so it can also
+    be piped in; with nothing to read (e.g. a batch job without input) the script exits.
+    Returns "overwrite" or "append".
+    """
+    if not os.path.isfile(db_path):
+        print(f"ERROR: The output database '{db_path}' exists but is not a file.")
+        sys.exit(1)
+    print(f"The output database already exists: '{db_path}'.")
+    if cannot_append:
+        print(f"It cannot be appended to: {cannot_append}.")
+        question, answers, valid = "Overwrite it (o) or exit (e)? ", {"o": "overwrite", "e": "exit"}, "o or e"
+    else:
+        question, answers, valid = ("Overwrite it (o), append to it (a) or exit (e)? ",
+                                    {"o": "overwrite", "a": "append", "e": "exit"}, "o, a or e")
+    while True:
+        print(question, end="", flush=True)
+        line = sys.stdin.readline()
+        if not line:
+            print("\nNo answer to read: exiting without touching the database.")
+            sys.exit(1)
+        answer = answers.get(line.strip().lower()[:1])
+        if answer == "exit":
+            print("Exiting without touching the database.")
+            sys.exit(1)
+        if answer:
+            return answer
+        print(f"Please answer {valid}.")
 
 def pause_for_review(timeout=5.0):
     """
@@ -66,8 +100,8 @@ def pause_for_review(timeout=5.0):
 # 1. ELONGATION RATE MODEL (Xmax vs Energy)
 # ==============================================================================
 
-def get_xmax(energy_eV, particle_type="Mixed"):
-    log_E = np.log10(energy_eV)
+def get_xmax(energy_GeV, particle_type="Mixed"):
+    log_E = np.log10(energy_GeV) + 9.0  # Convert GeV to eV for elongation rate formula: log10(E_eV) = log10(E_GeV * 10^9) = log10(E_GeV) + 9
 
     if particle_type.lower() == "proton":
         return 790.0 + 58.0 * (log_E - 19.0)
@@ -132,9 +166,9 @@ def accumulated_depth(s_target, theta_deg, detector_alt_km=0.0):
 
 
 def find_distance_to_xmax(
-    energy_eV, particle_type, theta_deg, detector_alt_km=0.0
+    energy_GeV, particle_type, theta_deg, detector_alt_km=0.0
 ):
-    target_xmax = get_xmax(energy_eV, particle_type)
+    target_xmax = get_xmax(energy_GeV, particle_type)
     total_depth_to_ground = accumulated_depth(
         0.0, theta_deg, detector_alt_km
     )
@@ -160,7 +194,7 @@ def find_distance_to_xmax(
 
 REQUIRED_COLUMNS = (
     "PrimaryType",
-    "Energy_EeV",
+    "Energy_GeV",
     "Zenith_Deg",
 )
 
@@ -169,18 +203,22 @@ def calculate_event_xmax(row, detector_alt_km=1.4):
     """
     Calculate Xmax for one SQLite event.
 
-    Energy is read from the SQLite DB in EeV and converted to eV before calling
-    the existing Xmax model.
+    Energy is read from the SQLite DB in GeV and passed to the Xmax model.
 
-    Returns distance to xmax[km], altitude
+    Returns distance to xmax[km], altitude, xmax
     """
+    if "Energy_GeV" in row.keys():
+        energy_GeV = float(row["Energy_GeV"])
+    elif "Energy_EeV" in row.keys():
+        energy_GeV = float(row["Energy_EeV"]) * 1.0e9
+    else:
+        raise KeyError("Row missing energy column ('Energy_GeV' or 'Energy_EeV')")
 
-    energy_eV = float(row["Energy_EeV"]) * 1.0e18
     particle_type = row["PrimaryType"]
     zenith_deg = float(row["Zenith_Deg"])
 
     distance, altitude, xmax = find_distance_to_xmax(
-        energy_eV,
+        energy_GeV,
         particle_type,
         zenith_deg,
         detector_alt_km=detector_alt_km,
@@ -189,18 +227,105 @@ def calculate_event_xmax(row, detector_alt_km=1.4):
     return distance, altitude, xmax
 
 
-def process_sqlite(input_file, output_file, librarytype, librarydir=".", detector_alt_km=1.4):
+# The tables of the output database. RunSettings records the settings it was written with, so that it is only
+# appended to with the same ones (issue #51).
+SHOWERS_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS Showers (
+        ShowerNumber INTEGER PRIMARY KEY,
+        ShowerName TEXT,
+        RandomSeed TEXT,
+        ShowerWeight REAL,f
+        PrimaryType TEXT,
+        Energy_GeV REAL,
+        Zenith_Deg REAL,
+        Azimuth_Deg REAL,
+        Model TEXT,
+        Xmax_g_cm2 REAL,
+        XmaxAltitude_km REAL,
+        XmaxDistance_km REAL,
+        NaturalWeight REAL
+    )
+"""
+RUN_SETTINGS_TABLE_SQL = "CREATE TABLE IF NOT EXISTS RunSettings (Name TEXT PRIMARY KEY, Value TEXT)"
+
+
+def append_problem(db_path, run_settings):
+    """
+    Why the existing database db_path cannot be appended to, or None if it can: it must have the tables this
+    XmaxGetter writes and have been written with the same settings (its RunSettings table), so that all its
+    showers get their Xmax the same way.
+    """
+    expected = sqlite3.connect(":memory:")
+    expected.execute(SHOWERS_TABLE_SQL)
+    expected.execute(RUN_SETTINGS_TABLE_SQL)
+    try:
+        conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+        try:
+            for table in ("Showers", "RunSettings"):
+                have = [col[1] for col in conn.execute(f"PRAGMA table_info({table})")]
+                want = [col[1] for col in expected.execute(f"PRAGMA table_info({table})")]
+                if not have:
+                    return ("it does not record the settings it was written with (it was written before they were recorded)"
+                            if table == "RunSettings" else f"it has no {table} table")
+                if have != want:
+                    return f"its {table} table does not have the columns this XmaxGetter writes"
+            stored = dict(conn.execute("SELECT Name, Value FROM RunSettings"))
+        finally:
+            conn.close()
+    except sqlite3.DatabaseError:
+        return "it is not an SQLite database"
+    finally:
+        expected.close()
+    changed = [f"{name} {stored.get(name, '(not recorded)')} instead of {value}"
+               for name, value in run_settings.items() if stored.get(name) != value]
+    if changed:
+        return "it was written with other settings (" + "; ".join(changed) + ")"
+    return None
+
+
+def read_existing_showers(db_path):
+    """The showers already in an output database, to append to it: ShowerName -> ShowerNumber."""
+    conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+    try:
+        return dict(conn.execute("SELECT ShowerName, ShowerNumber FROM Showers"))
+    finally:
+        conn.close()
+
+
+def select_new_showers(rows, existing):
+    """
+    To append: the showers (rows) that are not in the output database yet, by ShowerName. existing maps the
+    ShowerName of each shower already there to its ShowerNumber. A flux database keeps its ShowerNumbers, so a
+    new shower whose number is taken comes from another flux database and cannot be appended.
+    """
+    new_rows = [row for row in rows if row["ShowerName"] not in existing]
+    print(f"Appending: {len(rows) - len(new_rows)} of the {len(rows)} showers are already in the output database, {len(new_rows)} are new.")
+    taken = set(existing.values())
+    clashes = [row["ShowerName"] for row in new_rows if row["ShowerNumber"] in taken]
+    if clashes:
+        raise ValueError(f"{len(clashes)} new showers (first: {clashes[0]}) have the ShowerNumber of another shower "
+                         "in the output database: they come from another flux database, so they cannot be appended to it")
+    return new_rows
+
+
+def process_sqlite(input_file, output_file, librarytype, librarydir=".", detector_alt_km=1.4,
+                   existing=None, overwrite=False, run_settings=None):
+    """
+    Computes Xmax for the showers of the flux database input_file and writes the output database.
+    existing (ShowerName -> ShowerNumber of the showers already in it) appends only the new showers;
+    overwrite deletes an existing output database first; run_settings is written to its RunSettings table.
+    """
     conn_in = sqlite3.connect(input_file)
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
     
-    # Check if 'Events' table exists
-    cursor_in.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Events'")
+    # Check if 'Showers' table exists
+    cursor_in.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Showers'")
     if not cursor_in.fetchone():
-        raise ValueError("Input Database does not contain an 'Events' table.")
+        raise ValueError("Input Database does not contain an 'Showers' table.")
 
     # Check for missing required columns
-    cursor_in.execute("PRAGMA table_info(Events)")
+    cursor_in.execute("PRAGMA table_info(Showers)")
     columns = [col[1] for col in cursor_in.fetchall()]
 
     missing_columns = [
@@ -214,39 +339,40 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             + ", ".join(missing_columns)
         )
 
-    # Fetch all events
-    cursor_in.execute("SELECT * FROM Events")
+    # Fetch all showers
+    cursor_in.execute("SELECT * FROM Showers")
     rows = cursor_in.fetchall()
+    conn_in.close()
 
+    print(f"Reading showers from '{input_file}'...")
+    if existing is not None:
+        rows = select_new_showers(rows, existing)
+        if not rows:
+            print("Nothing to append: the output database is unchanged.")
+            return
+
+    # You chose to overwrite it: the old database is deleted only now that the input has been read
+    if overwrite and os.path.exists(output_file):
+        os.remove(output_file)
+        print(f"Deleted the old '{output_file}'.")
     conn_out = sqlite3.connect(output_file)
     cursor_out = conn_out.cursor()
 
-    cursor_out.execute("""
-        CREATE TABLE IF NOT EXISTS Events (
-            EventNumber INTEGER PRIMARY KEY,
-            EventName TEXT,
-            RandomSeed TEXT,
-            EventWeight REAL,
-            PrimaryType TEXT,
-            Energy_EeV REAL,
-            Zenith_Deg REAL,
-            Azimuth_Deg REAL,
-            Model TEXT,
-            Xmax_g_cm2 REAL,
-            XmaxAltitude_km REAL,
-            XmaxDistance_km REAL
-        )
-    """)
+    cursor_out.execute(SHOWERS_TABLE_SQL)
+    cursor_out.execute(RUN_SETTINGS_TABLE_SQL)
+    if run_settings:
+        cursor_out.executemany("INSERT OR REPLACE INTO RunSettings (Name, Value) VALUES (?, ?)", run_settings.items())
 
-    print(f"Reading events from '{input_file}'...")
     print("Computing Xmax...")
 
-    n_events = 0
+    n_showers = 0
     n_errors = 0
-    events_data = []
+    showers_data = []
 
     for row in rows:
-        n_events += 1
+        n_showers += 1
+        energy_GeV = float(row["Energy_GeV"]) if "Energy_GeV" in columns else float(row["Energy_EeV"]) * 1.0e9
+
         if(librarytype=="Dummy"):
           
             try:
@@ -263,8 +389,8 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
         elif(librarytype=="ZHAireS"):
 
             try:
-                EventName=row["EventName"]
-                sryfile=librarydir+"/"+EventName+"/"+EventName+".sry"
+                ShowerName=row["ShowerName"]
+                sryfile=librarydir+"/"+ShowerName+"/"+ShowerName+".sry"
                 print("tryng",sryfile)
                 import AiresInfoFunctions as AiresInfo
                 alt,distance,Xmaxx,Xmaxy,Xmaxz =AiresInfo.GetKmXmaxFromSry(sryfile)
@@ -272,37 +398,41 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
                 print(alt,distance,xmax)
                 
             except Exception as exc:
-                event_id = row["EventNumber"]
+                shower_id = row["ShowerNumber"]
                 print(
                     f"WARNING: could not calculate Xmax for "
-                    f"event {event_id}: {exc}"
+                    f"shower {shower_id}: {exc}"
                 )
                 distance, alt, xmax = None, None, None
                 n_errors += 1
-                      
-        events_data.append((
-            row["EventNumber"], row["EventName"], row["RandomSeed"], row["EventWeight"],
-            row["PrimaryType"], row["Energy_EeV"], row["Zenith_Deg"], row["Azimuth_Deg"], 
-            row["Model"], xmax, alt, distance
+        else:
+            raise ValueError(f"Unknown library type: {librarytype}")
+            sys.exit(1)
+            
+        # The FluxGenerator's NaturalWeight is copied; older flux databases have none (NULL)
+        natural_weight = row["NaturalWeight"] if "NaturalWeight" in columns else None
+        showers_data.append((
+            row["ShowerNumber"], row["ShowerName"], row["RandomSeed"], row["ShowerWeight"],
+            row["PrimaryType"], energy_GeV, row["Zenith_Deg"], row["Azimuth_Deg"], 
+            row["Model"], xmax, alt, distance, natural_weight
         ))
 
-        if n_events % 100 == 0:
-            print(f"  Processed {n_events} events")
+        if n_showers % 100 == 0:
+            print(f"  Processed {n_showers} showers")
 
-    # Insert computed events into the output DB
+    # Insert computed showers into the output DB
     cursor_out.executemany("""
-        INSERT INTO Events (
-            EventNumber, EventName, RandomSeed, EventWeight, 
-            PrimaryType, Energy_EeV, Zenith_Deg, Azimuth_Deg, Model,
-            Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, events_data)
+        INSERT INTO Showers (
+            ShowerNumber, ShowerName, RandomSeed, ShowerWeight, 
+            PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model,
+            Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km, NaturalWeight
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, showers_data)
 
     conn_out.commit()
-    conn_in.close()
     conn_out.close()
 
-    print(f"Done. Processed {n_events} events.")
+    print(f"Done. Processed {n_showers} showers.")
     if n_errors:
         print(f"WARNING: {n_errors} events could not be processed.")
     print(f"Output written to '{output_file}'.")
@@ -314,7 +444,7 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
 
 def show_plots():
     detector_h = 1.4  # Pierre Auger Observatory altitude in km
-    energy = 1e18     # 1 EeV
+    energy_GeV = 1e9  # 1 EeV = 1e9 GeV
 
     print("Calculating distances and altitudes (0 to 89 degrees)...")
     zeniths = np.linspace(0, 89, 90)
@@ -324,9 +454,9 @@ def show_plots():
     dist_M, alt_M = [], []
 
     for z in zeniths:
-        dp, ap, _ = find_distance_to_xmax(energy, "Proton", z, detector_h)
-        di, ai, _ = find_distance_to_xmax(energy, "Iron", z, detector_h)
-        dm, am, _ = find_distance_to_xmax(energy, "Mixed", z, detector_h)
+        dp, ap, _ = find_distance_to_xmax(energy_GeV, "Proton", z, detector_h)
+        di, ai, _ = find_distance_to_xmax(energy_GeV, "Iron", z, detector_h)
+        dm, am, _ = find_distance_to_xmax(energy_GeV, "Mixed", z, detector_h)
 
         dist_P.append(dp)
         alt_P.append(ap)
@@ -360,7 +490,7 @@ def show_plots():
         linewidth=2,
         label=(
             f"Proton Dist. "
-            f"(Xmax={get_xmax(energy, 'Proton'):.0f})"
+            f"(Xmax={get_xmax(energy_GeV, 'Proton'):.0f})"
         ),
     )
     ax1.plot(
@@ -370,7 +500,7 @@ def show_plots():
         linewidth=2,
         label=(
             f"Iron Dist. "
-            f"(Xmax={get_xmax(energy, 'Iron'):.0f})"
+            f"(Xmax={get_xmax(energy_GeV, 'Iron'):.0f})"
         ),
     )
 
@@ -474,7 +604,8 @@ def main():
     print(f"Config File:      {config_file}")
     print(f"Input DB:         {input_file}")
     print(f"Output DB:        {output_file}")
-    print(f"Detector Alt:     {detector_alt_km} km")
+    if librarytype == "Dummy":
+      print(f"Detector Alt:     {detector_alt_km} km")
     print(f"Show Plots:       {show_plots_flag}")
     print(f"Xmax Source:      {librarytype}")
     if librarytype == "ZHAireS":
@@ -483,6 +614,12 @@ def main():
 
     if not os.path.isfile(input_file):
         print(f"ERROR: Input database file not found: '{input_file}' (resolved relative to config file).")
+        sys.exit(1)
+
+    # Checked before the output database is created: an unknown type would stop the run at the first shower
+    # and leave an empty database behind
+    if librarytype not in ("Dummy", "ZHAireS"):
+        print(f"ERROR: Unknown LibraryType '{librarytype}'. Use Dummy or ZHAireS.")
         sys.exit(1)
 
     out_dir = os.path.dirname(output_file)
@@ -523,13 +660,32 @@ def main():
             print(f"Error: Could not import AiresInfoFunctions or AiresInpFunctions from '{zhaires_path}': {e}")
             sys.exit(1)
 
+    # The settings an existing output database must have been written with to be appended to. Paths are
+    # recorded relative to the output database, so that a moved or cloned project can still append.
+    out_dir_abs = os.path.dirname(os.path.abspath(output_file))
+    run_settings = {
+        "InputFile": os.path.relpath(input_file, out_dir_abs),
+        "LibraryType": librarytype,
+        "LibraryDir": os.path.relpath(librarydir, out_dir_abs) if librarytype == "ZHAireS" else "None",
+        "detector_alt_km": repr(detector_alt_km) if librarytype == "Dummy" else "None",
+    }
+    # An existing output database is only changed if you say so (issue #51): overwrite it, append the showers
+    # that are not in it yet, or exit
+    existing, overwrite = None, False
+    if os.path.exists(output_file):
+        if ask_about_existing_output(output_file, append_problem(output_file, run_settings)) == "append":
+            existing = read_existing_showers(output_file)
+        else:
+            overwrite = True
+
     pause_for_review(5.0)
 
     if show_plots_flag:
         show_plots()
 
     try:
-        process_sqlite(input_file, output_file, librarytype ,librarydir, detector_alt_km=detector_alt_km)
+        process_sqlite(input_file, output_file, librarytype ,librarydir, detector_alt_km=detector_alt_km,
+                       existing=existing, overwrite=overwrite, run_settings=run_settings)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         sys.exit(1)

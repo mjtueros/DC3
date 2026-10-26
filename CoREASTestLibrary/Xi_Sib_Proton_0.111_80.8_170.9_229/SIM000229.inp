@@ -1,0 +1,70 @@
+* ------------------------------------------------------------------------------
+* Shower keywords written by SimpleCoREASShowerInputGenerator.py
+* ShowerName Xi_Sib_Proton_0.111_80.8_170.9_229, ShowerNumber 229, PrimaryType Proton
+* Energy 111259712.66363366 GeV, Zenith 80.8043756070239 deg, Azimuth 170.89153691336764 deg
+* ------------------------------------------------------------------------------
+RUNNR  229                              run number (ShowerNumber)
+EVTNR  1                                number of the first shower
+NSHOW  1                                number of showers
+SEED   192581009 0 0                    seed of the hadronic part
+SEED   492581009 0 0                    seed of the EGS4 part
+SEED   792581009 0 0                    seed of the third sequence
+PRMPAR 14                               primary particle (Proton)
+ERANGE 1.112597E+08 1.112597E+08        primary energy (GeV)
+THETAP 80.804376 80.804376              zenith angle (deg)
+PHIP   350.891537 350.891537            azimuth of the direction of motion (deg), database azimuth + 180
+THIN   1.0000E-05 9.345816E+02 0.       thinning level, weight limit (as AIRES), no radial thinning
+* Output directory: the shower's directory, with SIM<run>.reas and SIM<run>.list
+DIRECT /home/vittakis/DC3/CoREASInputs/Xi_Sib_Proton_0.111_80.8_170.9_229/
+* ==============================================================================
+* A GRAND SHOWER SKELETON FOR CORSIKA (particle simulation, no radio)
+* ==============================================================================
+* Needs a CORSIKA build with the CURVED, SLANT, THIN and SIBYLL options.
+* SimpleCoREASShowerInputGenerator.py writes the event keywords (RUNNR, EVTNR,
+* NSHOW, SEED, PRMPAR, ERANGE, THETAP, PHIP, THIN, DIRECT) above this skeleton.
+* CORSIKA reads the keywords up to EXIT. Lines starting with * are comments,
+* and so is the text after the last argument of a keyword.
+* Section numbers below refer to the CORSIKA 7.8050 user guide.
+*
+* Site, as in Example.ZHAireS.Skeleton.inp (Xiaodushan, ground at 1264 m)
+* ------------------------------------------------------------------------------
+OBSLEV 1264.E2                          observation level (cm)
+* Magnetic field of the ZHAireS skeleton, 56.482 uT with inclination 61.6 deg:
+* BX = 56.482 cos(61.6 deg) to the north, BZ = 56.482 sin(61.6 deg) downwards.
+* The declination is not needed: CORSIKA, like AIRES, takes the azimuth from
+* magnetic north.
+MAGNET 26.8642 49.6843                  BX BZ (uT)
+*
+* Atmosphere: the 4 GDAS layers of the ZHAireS skeleton (Dunhuang, gdastool)
+* ------------------------------------------------------------------------------
+* Each layer h1-h2 with densities rho1, rho2 is exponential. In CORSIKA form,
+* T(h) = a + b exp(-h/c), with c = (h2-h1)/ln(rho1/rho2), b = rho1 c exp(h1/c),
+* and a set to make T continuous, starting from the U.S. standard layer that
+* ATMOD 0 uses above 100 km. This gives 904.509 g/cm2 at 1264 m (904.508 in the
+* .sry files of the ZHAireS showers).
+* ATMA: a (g/cm2), ATMB: b (g/cm2), ATMC: c (cm), for layers 1 to 4;
+* ATMLAY: lower boundaries of layers 2 to 5 (cm).
+ATMOD  0                                atmosphere given by ATMA, ATMB, ATMC, ATMLAY
+ATMA   -2.13255642E+02 -1.20983111E+02 6.61902143E-01 3.87502874E-04
+ATMB   1.25803213E+03 1.17360151E+03 1.23362534E+03 1.15682347E+03
+ATMC   1.06920970E+06 9.58476904E+05 6.94197835E+05 7.10648512E+05
+ATMLAY 3.6888E+05 9.3776E+05 2.6300E+06 1.0000E+07
+*
+* Interactions
+* ------------------------------------------------------------------------------
+SIBYLL T 0                              SIBYLL for the high-energy hadronic interactions
+SIBSIG T                                SIBYLL cross-sections
+ELMFLG F T                              NKG off, EGS4 on
+* Kinetic energy cuts as in the ZHAireS showers (.sry files) for muons (10 MeV),
+* electrons and photons (1 MeV). Hadrons at CORSIKA's default 0.3 GeV (AIRES
+* cuts mesons at 60 MeV and nucleons at 120 MeV).
+ECUTS  0.3 0.01 0.001 0.001             hadrons, muons, electrons, photons (GeV)
+* Hadrons and muons: the same thinning level and weight limit as THIN (in the
+* event keywords), since AIRES uses one weight limit for all particles.
+THINH  1. 1.                            ratios em/hadronic of thinning level and weight limit
+*
+* Output
+* ------------------------------------------------------------------------------
+LONGI  T 5. T T                         profile on, 5 g/cm2 slant steps, Gaisser-Hillas fit, .long file
+PAROUT F F                              no particle file and no .tab file (no ground particles needed)
+EXIT
