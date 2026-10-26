@@ -8,7 +8,6 @@ With no arguments, the script shows the original Xmax diagnostic plots and
 prints the correct command-line syntax.
 """
 
-from asyncio import unix_events
 import sys
 import os
 import time
@@ -311,10 +310,10 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             try:
                 distance, alt, xmax = calculate_event_xmax(row, detector_alt_km=detector_alt_km)
             except Exception as exc:
-                event_id = row["EventNumber"]
+                shower_id = row["ShowerNumber"]
                 print(
                     f"WARNING: could not calculate Xmax for "
-                    f"event {event_id}: {exc}"
+                    f"shower {shower_id}: {exc}"
                 )
                 distance, alt, xmax = None, None, None
                 n_errors += 1
@@ -367,7 +366,7 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
 
     print(f"Done. Processed {n_showers} showers.")
     if n_errors:
-        print(f"WARNING: {n_errors} events could not be processed.")
+        print(f"WARNING: {n_errors} showers could not be processed.")
     print(f"Output written to '{output_file}'.")
 
 
