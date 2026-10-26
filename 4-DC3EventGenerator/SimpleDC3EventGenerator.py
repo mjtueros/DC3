@@ -9,9 +9,12 @@ import sqlite3
 import sys
 import time
 
-from pathlib import Path
 import numpy as np
 from VisualsEventGenerator import (visualize_cores, visualize_distributions,visualize_xmax, visualize_xmaxfits)
+
+# What to do with an output database that already exists (issue #51), shared by the scripts that write one
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
+import OutputDatabase
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -115,14 +118,9 @@ def rand_in_hex(center, size):
 # ==============================================================================
 # DATABASE SETUP
 # ==============================================================================
-def init_database(db_path, run_settings=None):
-    """
-    Initializes the SQLite database schema. RunSettings records the settings the database is written with
-    (run_settings), so that it is only appended to with the same ones (issue #51).
-    """
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.executescript("""
+# The tables of the output database. Its RunSettings table records the settings it was written with, so that it is
+# only appended to with the same ones (issue #51).
+EVENT_TABLES_SQL = """
         CREATE TABLE IF NOT EXISTS Events (
             EventID INTEGER PRIMARY KEY AUTOINCREMENT,
             EventName TEXT,
@@ -166,10 +164,17 @@ def init_database(db_path, run_settings=None):
         );
         CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
         CREATE INDEX IF NOT EXISTS idx_triggered_ant_event ON TriggeredAntennas(EventID);
-        CREATE TABLE IF NOT EXISTS RunSettings (Name TEXT PRIMARY KEY, Value TEXT);
-    """)
-    if run_settings:
-        c.executemany("INSERT OR REPLACE INTO RunSettings (Name, Value) VALUES (?, ?)", run_settings.items())
+    """
+
+def init_database(db_path, run_settings=None):
+    """
+    Initializes the SQLite database schema. RunSettings records the settings the database is written with
+    (run_settings), so that it is only appended to with the same ones (issue #51).
+    """
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.executescript(EVENT_TABLES_SQL)
+    OutputDatabase.write_run_settings(conn, run_settings or {})
     conn.commit()
     return conn
 
@@ -180,32 +185,19 @@ def append_problem(db_path, run_settings, showers_db):
     events of showers of the input database showers_db, so that its events and the new ones are simulated and
     weighted the same way.
     """
-    expected = init_database(":memory:")
+    problem = OutputDatabase.settings_problem(db_path, EVENT_TABLES_SQL, run_settings, "EventGenerator")
+    if problem:
+        return problem
     try:
-        conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+        conn = OutputDatabase.open_read_only(db_path)
         try:
-            for table in ("Events", "TriggeredAntennas", "TestedCores", "RunSettings"):
-                have = [col[1] for col in conn.execute(f"PRAGMA table_info({table})")]
-                want = [col[1] for col in expected.execute(f"PRAGMA table_info({table})")]
-                if not have:
-                    return ("it does not record the settings it was written with (it was written before they were recorded)"
-                            if table == "RunSettings" else f"it has no {table} table")
-                if have != want:
-                    return f"its {table} table does not have the columns this EventGenerator writes"
-            stored = dict(conn.execute("SELECT Name, Value FROM RunSettings"))
             names = [name for (name,) in conn.execute("SELECT ShowerName FROM Events")]
         finally:
             conn.close()
     except sqlite3.DatabaseError:
         return "it is not an SQLite database"
-    finally:
-        expected.close()
-    changed = [f"{name} {stored.get(name, '(not recorded)')} instead of {value}"
-               for name, value in run_settings.items() if stored.get(name) != value]
-    if changed:
-        return "it was written with other settings (" + "; ".join(changed) + ")"
     try:
-        conn_in = sqlite3.connect(Path(showers_db).resolve().as_uri() + "?mode=ro", uri=True)
+        conn_in = OutputDatabase.open_read_only(showers_db)
         try:
             input_names = {name for (name,) in conn_in.execute("SELECT ShowerName FROM Showers")}
         finally:
@@ -232,38 +224,6 @@ def resolve_ini_path(config_file_path, path_str):
         return path_str
     config_dir = os.path.dirname(os.path.abspath(config_file_path))
     return os.path.abspath(os.path.join(config_dir, path_str))
-
-def ask_about_existing_output(db_path, cannot_append):
-    """
-    Asks what to do with an output database that already exists (issue #51): overwrite it, append to it, or
-    exit without touching it. cannot_append is None when appending is possible, or the reason it is not,
-    and then only overwrite and exit are offered. The answer is read from the standard input, so it can also
-    be piped in; with nothing to read (e.g. a batch job without input) the script exits.
-    Returns "overwrite" or "append".
-    """
-    if not os.path.isfile(db_path):
-        print(f"ERROR: The output database '{db_path}' exists but is not a file.")
-        sys.exit(1)
-    print(f"The output database already exists: '{db_path}'.")
-    if cannot_append:
-        print(f"It cannot be appended to: {cannot_append}.")
-        question, answers, valid = "Overwrite it (o) or exit (e)? ", {"o": "overwrite", "e": "exit"}, "o or e"
-    else:
-        question, answers, valid = ("Overwrite it (o), append to it (a) or exit (e)? ",
-                                    {"o": "overwrite", "a": "append", "e": "exit"}, "o, a or e")
-    while True:
-        print(question, end="", flush=True)
-        line = sys.stdin.readline()
-        if not line:
-            print("\nNo answer to read: exiting without touching the database.")
-            sys.exit(1)
-        answer = answers.get(line.strip().lower()[:1])
-        if answer == "exit":
-            print("Exiting without touching the database.")
-            sys.exit(1)
-        if answer:
-            return answer
-        print(f"Please answer {valid}.")
 
 def pause_for_review(timeout=5.0):
     """
@@ -382,12 +342,10 @@ def main():
         )
         sys.exit(1)
 
-    # The settings an existing output database must have been written with to be appended to. Paths are
-    # recorded relative to the output database, so that a moved or cloned project can still append.
-    out_dir_abs = os.path.dirname(os.path.abspath(out_db))
+    # The settings an existing output database must have been written with to be appended to
     run_settings = {
-        "showers_db": os.path.relpath(showers_db, out_dir_abs),
-        "antennas_csv": os.path.relpath(antennas_csv, out_dir_abs),
+        "showers_db": OutputDatabase.path_setting(showers_db, out_db),
+        "antennas_csv": OutputDatabase.path_setting(antennas_csv, out_db),
         "center_n": repr(center_n),
         "center_w": repr(center_w),
         "center_u": repr(center_u),
@@ -403,9 +361,9 @@ def main():
     # that are not in it yet, or exit. A dry run writes no database, so it does not ask.
     existing_events, appending, overwrite = set(), False, False
     if not dry_run and os.path.exists(out_db):
-        if ask_about_existing_output(out_db, append_problem(out_db, run_settings, showers_db)) == "append":
+        if OutputDatabase.ask_about_existing_output(out_db, append_problem(out_db, run_settings, showers_db)) == "append":
             appending = True
-            conn_old = sqlite3.connect(Path(out_db).resolve().as_uri() + "?mode=ro", uri=True)
+            conn_old = OutputDatabase.open_read_only(out_db)
             existing_events = {name for (name,) in conn_old.execute("SELECT EventName FROM Events")}
             conn_old.close()
         else:
@@ -436,9 +394,8 @@ def main():
     # 2. INIT DATABASE
     if not dry_run:
         # You chose to overwrite it: the old database is deleted only now, just before the new one is written
-        if overwrite and os.path.exists(out_db):
-            os.remove(out_db)
-            print(f"Deleted the old '{out_db}'.")
+        if overwrite:
+            OutputDatabase.delete_old_output(out_db)
         conn = init_database(out_db, run_settings)
         cursor = conn.cursor()
 
