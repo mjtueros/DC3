@@ -6,6 +6,9 @@ __pycache__/
 /ZHAireS-Inputs/
 /CoREASInputs/
 
+# Inputs generated for CORSIKA, which hold the absolute paths of the machine where they were made
+/DebugLibraryCoREAS/DEBUGCoREASInputs/
+
 .vscode/
 pyrefly.toml
 *.pyc
