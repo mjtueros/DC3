@@ -15,11 +15,14 @@ import time
 import select
 import configparser
 import sqlite3
-from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.integrate import quad
 from scipy.optimize import brentq
+
+# What to do with an output database that already exists (issue #51), shared by the scripts that write one
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
+import OutputDatabase
 
 def resolve_ini_path(config_file_path, path_str):
     """
@@ -33,38 +36,6 @@ def resolve_ini_path(config_file_path, path_str):
         return path_str
     config_dir = os.path.dirname(os.path.abspath(config_file_path))
     return os.path.abspath(os.path.join(config_dir, path_str))
-
-def ask_about_existing_output(db_path, cannot_append):
-    """
-    Asks what to do with an output database that already exists (issue #51): overwrite it, append to it, or
-    exit without touching it. cannot_append is None when appending is possible, or the reason it is not,
-    and then only overwrite and exit are offered. The answer is read from the standard input, so it can also
-    be piped in; with nothing to read (e.g. a batch job without input) the script exits.
-    Returns "overwrite" or "append".
-    """
-    if not os.path.isfile(db_path):
-        print(f"ERROR: The output database '{db_path}' exists but is not a file.")
-        sys.exit(1)
-    print(f"The output database already exists: '{db_path}'.")
-    if cannot_append:
-        print(f"It cannot be appended to: {cannot_append}.")
-        question, answers, valid = "Overwrite it (o) or exit (e)? ", {"o": "overwrite", "e": "exit"}, "o or e"
-    else:
-        question, answers, valid = ("Overwrite it (o), append to it (a) or exit (e)? ",
-                                    {"o": "overwrite", "a": "append", "e": "exit"}, "o, a or e")
-    while True:
-        print(question, end="", flush=True)
-        line = sys.stdin.readline()
-        if not line:
-            print("\nNo answer to read: exiting without touching the database.")
-            sys.exit(1)
-        answer = answers.get(line.strip().lower()[:1])
-        if answer == "exit":
-            print("Exiting without touching the database.")
-            sys.exit(1)
-        if answer:
-            return answer
-        print(f"Please answer {valid}.")
 
 def pause_for_review(timeout=5.0):
     """
@@ -227,8 +198,8 @@ def calculate_event_xmax(row, detector_alt_km=1.4):
     return distance, altitude, xmax
 
 
-# The tables of the output database. RunSettings records the settings it was written with, so that it is only
-# appended to with the same ones (issue #51).
+# The table of the output database. Its RunSettings table records the settings it was written with, so that it is
+# only appended to with the same ones (issue #51).
 SHOWERS_TABLE_SQL = """
     CREATE TABLE IF NOT EXISTS Showers (
         ShowerNumber INTEGER PRIMARY KEY,
@@ -246,46 +217,11 @@ SHOWERS_TABLE_SQL = """
         NaturalWeight REAL
     )
 """
-RUN_SETTINGS_TABLE_SQL = "CREATE TABLE IF NOT EXISTS RunSettings (Name TEXT PRIMARY KEY, Value TEXT)"
-
-
-def append_problem(db_path, run_settings):
-    """
-    Why the existing database db_path cannot be appended to, or None if it can: it must have the tables this
-    XmaxGetter writes and have been written with the same settings (its RunSettings table), so that all its
-    showers get their Xmax the same way.
-    """
-    expected = sqlite3.connect(":memory:")
-    expected.execute(SHOWERS_TABLE_SQL)
-    expected.execute(RUN_SETTINGS_TABLE_SQL)
-    try:
-        conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
-        try:
-            for table in ("Showers", "RunSettings"):
-                have = [col[1] for col in conn.execute(f"PRAGMA table_info({table})")]
-                want = [col[1] for col in expected.execute(f"PRAGMA table_info({table})")]
-                if not have:
-                    return ("it does not record the settings it was written with (it was written before they were recorded)"
-                            if table == "RunSettings" else f"it has no {table} table")
-                if have != want:
-                    return f"its {table} table does not have the columns this XmaxGetter writes"
-            stored = dict(conn.execute("SELECT Name, Value FROM RunSettings"))
-        finally:
-            conn.close()
-    except sqlite3.DatabaseError:
-        return "it is not an SQLite database"
-    finally:
-        expected.close()
-    changed = [f"{name} {stored.get(name, '(not recorded)')} instead of {value}"
-               for name, value in run_settings.items() if stored.get(name) != value]
-    if changed:
-        return "it was written with other settings (" + "; ".join(changed) + ")"
-    return None
 
 
 def read_existing_showers(db_path):
     """The showers already in an output database, to append to it: ShowerName -> ShowerNumber."""
-    conn = sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
+    conn = OutputDatabase.open_read_only(db_path)
     try:
         return dict(conn.execute("SELECT ShowerName, ShowerNumber FROM Showers"))
     finally:
@@ -352,16 +288,13 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
             return
 
     # You chose to overwrite it: the old database is deleted only now that the input has been read
-    if overwrite and os.path.exists(output_file):
-        os.remove(output_file)
-        print(f"Deleted the old '{output_file}'.")
+    if overwrite:
+        OutputDatabase.delete_old_output(output_file)
     conn_out = sqlite3.connect(output_file)
     cursor_out = conn_out.cursor()
 
     cursor_out.execute(SHOWERS_TABLE_SQL)
-    cursor_out.execute(RUN_SETTINGS_TABLE_SQL)
-    if run_settings:
-        cursor_out.executemany("INSERT OR REPLACE INTO RunSettings (Name, Value) VALUES (?, ?)", run_settings.items())
+    OutputDatabase.write_run_settings(conn_out, run_settings or {})
 
     print("Computing Xmax...")
 
@@ -660,20 +593,19 @@ def main():
             print(f"Error: Could not import AiresInfoFunctions or AiresInpFunctions from '{zhaires_path}': {e}")
             sys.exit(1)
 
-    # The settings an existing output database must have been written with to be appended to. Paths are
-    # recorded relative to the output database, so that a moved or cloned project can still append.
-    out_dir_abs = os.path.dirname(os.path.abspath(output_file))
+    # The settings an existing output database must have been written with to be appended to
     run_settings = {
-        "InputFile": os.path.relpath(input_file, out_dir_abs),
+        "InputFile": OutputDatabase.path_setting(input_file, output_file),
         "LibraryType": librarytype,
-        "LibraryDir": os.path.relpath(librarydir, out_dir_abs) if librarytype == "ZHAireS" else "None",
+        "LibraryDir": OutputDatabase.path_setting(librarydir, output_file) if librarytype == "ZHAireS" else "None",
         "detector_alt_km": repr(detector_alt_km) if librarytype == "Dummy" else "None",
     }
     # An existing output database is only changed if you say so (issue #51): overwrite it, append the showers
     # that are not in it yet, or exit
     existing, overwrite = None, False
     if os.path.exists(output_file):
-        if ask_about_existing_output(output_file, append_problem(output_file, run_settings)) == "append":
+        problem = OutputDatabase.settings_problem(output_file, SHOWERS_TABLE_SQL, run_settings, "XmaxGetter")
+        if OutputDatabase.ask_about_existing_output(output_file, problem) == "append":
             existing = read_existing_showers(output_file)
         else:
             overwrite = True
