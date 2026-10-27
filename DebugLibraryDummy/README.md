@@ -30,4 +30,5 @@ The secret is to leave `LibraryType = Dummy` in the `[XmaxGetter]` section of th
 
 Since you dont need to run any showers, you can generate everything in some minutes
 
+`HexRings/` is an example of a library made of rings of the hexagon, combined into one and mapped with the trigger-probability tools of stage 4 (see its README).
 

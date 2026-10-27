@@ -3,8 +3,8 @@
 # What to do with an output database that already exists (issue #51)
 ################################################################################
 # Shared by the scripts that write a database: SimpleFluxGenerator.py,
-# RebuildAiresFluxDatabase.py, SimpleXmaxGetter.py, SimpleDC3EventGenerator.py
-# and CombineHexRings.py.
+# RebuildAiresFluxDatabase.py, SimpleXmaxGetter.py, SimpleDC3EventGenerator.py,
+# CombineHexRings.py and TriggerProbabilityMap.py.
 #
 # A script goes ahead without asking only when its output database does not
 # exist. When it exists, ask_about_existing_output() asks whether to overwrite

@@ -61,7 +61,7 @@ FROM TestedCores t JOIN Events e ON e.EventID = t.EventID
 GROUP BY ZenithBin;
 ```
 
-This holds for a library drawn over one hexagon or ring. A library combined from rings (see below) has more cores per km² in some rings than in others: there, weight every core by its ring's `Area_km2 / cores_per_event` (`Rings` table), or use `TriggerProbabilityMap.py`, which does.
+This holds for a library drawn over one hexagon or ring. A library combined from rings (see below) has more cores per km² in some rings than in others: there, weight every core by its ring's `Area_km2 / cores_per_event` (`Rings` table), or use `TriggerProbabilityMap.py`, which does. It also gives the probability per core position (see [Trigger probability maps](#trigger-probability-maps)).
 
 ## Rings of the hexagon
 
@@ -83,6 +83,22 @@ python3 ../4-DC3EventGenerator/CombineHexRings.py Rings.sqlite Ring0.sqlite Ring
 - `NaturalRate_per_yr` is kept: it already holds the area of its ring, so the rates add up.
 - `EventName` gets `_h<ring>`, from `_h0` for the innermost ring, and `TriggeredAntennas` and `TestedCores` are copied with the new `EventID`s.
 - The rings must have the same settings apart from `hex_inner`, `hex_size` and `cores_per_event`, and the same events, so that every shower is in every ring. The combined database has a `Rings` table (each ring, its area, its share of the total, its `EventID`s and the database it comes from) and records the rings in `RunSettings` (`hex_rings`, and no `hex_size`), so the generator does not append to it.
+
+A worked example, three rings of the Dummy library combined into one and mapped, with the commands and what they print, is in [`DebugLibraryDummy/HexRings`](../DebugLibraryDummy/HexRings/README.md).
+
+## Trigger probability maps
+
+`TriggerProbabilityMap.py` gives the trigger probability across the array from the tested cores of a database: per square cell of core position, in bins of zenith, energy and, if asked, azimuth, and against the hexagonal radius of the core (the size of the smallest hexagon of the generator that contains it). From a library folder:
+
+```bash
+python3 ../4-DC3EventGenerator/TriggerProbabilityMap.py ExampleDummyTriggeredEvents.sqlite --zenith 50,70,80,90 --log-energy 7.5,8.5,9.5 --plots Maps
+```
+
+- It prints, per bin, the trigger probability and the hexagonal radii that hold 50%, 90% and 99% of the triggering cores, which show where the trigger area ends and where rings could go.
+- It writes the map to `<database>_TriggerMap.sqlite`: the tables `MapCells` (one row per cell and bin), `RadialProfile` (one row per bin of hexagonal radius) and `MapSettings` (the input database, the bins and the hexagon). An existing map is only overwritten if you say so.
+- It draws the maps, with the antennas and the hexagon, and the radial profiles, or saves them in the `--plots` folder as PNG files.
+
+The probability of a cell is the fraction of its tested cores that triggered, averaged over the showers of the bin as they are in the library (not weighted by their flux), with its 68% Wilson interval. `probability_at()` reads it back at a core position, e.g. to weight measured events. In a combined library, every core counts for the area it stands for, so that the probabilities are averages over the area. `python3 TriggerProbabilityMap.py --help` lists the options.
 
 ## Output Database Schema
 
