@@ -469,7 +469,8 @@ def visualize_xmaxfits(config, out_egy, out_xmax, out_wgt, out_primary, name):
         hist_p_pdf = hist_p / total_area
 
         # Fit Generalized Gumbel
-        popt, pcov = curve_fit(GenGumbelDist, bin_centers, hist_p_pdf, p0=[100, 700, 1])
+        bounds = ([1, 1, 0], [1e4, 1e4, 5])
+        popt, pcov = curve_fit(GenGumbelDist, bin_centers, hist_p_pdf, p0=[100, 700, 1], bounds=bounds)
         sigma_fit, mu_fit, lam_fit = popt
         sigma_mu, sigma_sigma, sigma_lam = np.sqrt(np.diag(pcov))
 
@@ -517,7 +518,7 @@ def visualize_xmaxfits(config, out_egy, out_xmax, out_wgt, out_primary, name):
 
         # Fit Generalized Gumbel
         popt, pcov = curve_fit(
-            GenGumbelDist, bin_centers, hist_Fe_pdf, p0=[100, 700, 1]
+            GenGumbelDist, bin_centers, hist_Fe_pdf, p0=[100, 700, 1], bounds=bounds
         )
         sigma_fit, mu_fit, lam_fit = popt
         mu_fit = (
