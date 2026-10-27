@@ -356,16 +356,11 @@ def main():
     EventSeed = sec.getint("EventSeed", fallback=np.random.random())
     np.random.seed(EventSeed)
 
-<<<<<<< HEAD
-    print("#########################################################")
-=======
     Interpolator = sec.get("Interpolator", fallback="select_cone")
     RadioMorphingPath = sec.get("PathToRadioMorphingInstallation")
-    threshold = sec.getfloat("threshold", fallback = 12)
-    
+    threshold = sec.getfloat("threshold", fallback = 15)
 
-    print("################################################################################")
->>>>>>> 2309542 (Commented part of the code)
+    print("#########################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")
     print("#########################################################")
     print(f"Config File:     {config_file}")
@@ -500,13 +495,9 @@ def main():
         azimuth = float(row['Azimuth_Deg'])
         energy_GeV = float(row['Energy_GeV']) 
         original_weight = float(row['ShowerWeight'])
-<<<<<<< HEAD
         primary = str(row["PrimaryType"])
         # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
         natural_weight = row['NaturalWeight'] if 'NaturalWeight' in row.keys() else None
-=======
-        primary_type = str(row["PrimaryType"])
->>>>>>> 2309542 (Commented part of the code)
         
         theta_rad = np.radians(zenith)
         phi_rad = np.radians(azimuth)
@@ -536,24 +527,12 @@ def main():
                 in_egy.append(energy_GeV)
                 in_wgt.append(original_weight)
             
-<<<<<<< HEAD
             # Test cores_per_event core positions, without stopping at the first trigger (issue #47)
             for _ in range(cores_per_event):
                 core_try = rand_in_hex(center_pos, hex_size)
                 # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
-                trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
-=======
-            for try_idx in range(1, max_tries + 1):
-                core_pos = rand_in_hex(center_pos, hex_size)
-                tested_cores.append(core_pos)
-<<<<<<< HEAD
-                #xmax_dist*kvector gives the xmax position from the core, minus the core to move to the cite CS
-                xmax_pos = (xmax_dist_km * 1000.0 * k_vector) - core_pos
-                trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
-=======
-                xmax_pos = core_pos - (xmax_dist_km * 1000.0 * k_vector)
 
                 if Interpolator == "RadioMorphing": 
                     site_altitude = core_pos[2]
@@ -565,18 +544,17 @@ def main():
                     Traces = rmi.AntennaInterpolator(RadioMorphingPath, 'Iron', 4, zenith, azimuth, site_altitude, False, ant_pos_shifted)
 
                     # Rescaling the traces to the desired energy
-                    Traces = Traces * energy/4
+                    energy_EeV = energy_GeV/10e9
+                    Traces = Traces * energy_EeV/4
 
                     # Setting up the AntennaIds list
                     AntennaIds = list(range(len(ant_pos)))
 
                     # Simple trigger function, filter step hardcoded to False (off)
-                    trig_idx, amplitudes = rmi.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
+                    trig_try, amp_try = rmi.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
 
                 elif Interpolator == "select_cone":
-                    trig_idx, amplitudes = select_cone(xmax_pos, zenith, azimuth, ant_pos, cone_angle)
->>>>>>> a96abae (Commented part of the code)
->>>>>>> 2309542 (Commented part of the code)
+                    trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
                 
                 hit = len(trig_try) >= min_trigger
                 tested_cores.append((core_try, hit))
