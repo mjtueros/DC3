@@ -523,14 +523,10 @@ def visualize_xmaxfits(
         # Normalize histogram to PDF
         total_area = np.sum(hist_p) * bin_width
         hist_p_pdf = hist_p / total_area
-
-        print("NaN in bin_centers:", np.isnan(bin_centers).any())
-        print("inf in bin_centers:", np.isinf(bin_centers).any())
-        print("NaN in hist_p_pdf:", np.isnan(hist_p_pdf).any())
-        print("inf in hist_p_pdf:", np.isinf(hist_p_pdf).any())
  
         # Fit Generalized Gumbel
-        popt, pcov = curve_fit(GenGumbelDist, bin_centers, hist_p_pdf, p0=[100, 700, 1])
+        bounds = ([1, 1, 0], [1e4, 1e4, 5])
+        popt, pcov = curve_fit(GenGumbelDist, bin_centers, hist_p_pdf, p0=[100, 700, 1], bounds=bounds)
         sigma_fit, mu_fit, lam_fit = popt
         sigma_mu, sigma_sigma, sigma_lam = np.sqrt(np.diag(pcov))
 
@@ -579,7 +575,7 @@ def visualize_xmaxfits(
 
         # Fit Generalized Gumbel
         popt, pcov = curve_fit(
-            GenGumbelDist, bin_centers, hist_Fe_pdf, p0=[100, 700, 1]
+            GenGumbelDist, bin_centers, hist_Fe_pdf, p0=[100, 700, 1], bounds=bounds
         )
         sigma_fit, mu_fit, lam_fit = popt
         mu_fit = (
