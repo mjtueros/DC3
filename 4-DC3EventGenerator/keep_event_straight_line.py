@@ -1,5 +1,3 @@
-"""Test simple de l'intersection entre l'axe Xmax-cœur et le relief GRAND."""
-
 import sqlite3
 from pathlib import Path
 
