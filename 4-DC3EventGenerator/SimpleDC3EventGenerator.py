@@ -535,10 +535,10 @@ def main():
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
 
                 if Interpolator == "RadioMorphing": 
-                    site_altitude = core_pos[2]
+                    site_altitude = core_try[2]
 
                     # RadioMorphing expects antenna position X Y centered on core position at ground level, and Z as ASL
-                    ant_pos_shifted = ant_pos - [core_pos[0], core_pos[1], 0]
+                    ant_pos_shifted = ant_pos - [core_try[0], core_try[1], 0]
 
                     # Interpolation step, with energy set to 4EeV
                     Traces = rmi.AntennaInterpolator(RadioMorphingPath, 'Iron', 4, zenith, azimuth, site_altitude, False, ant_pos_shifted)
