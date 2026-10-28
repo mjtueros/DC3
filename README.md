@@ -49,6 +49,7 @@ If the output database of stage 1, 3 or 4 (or of `RebuildAiresFluxDatabase.py`) 
 - **`3-DC3XmaxGetter`**: Obtains $X_{\max}$, geometric distance, and altitude for each shower.
 - **`4-DC3EventGenerator`**: Throws random cores inside a hexagonal area over the antenna array, checks Cherenkov cone intersection, evaluates triggers, and renormalizes event weights.
 - **`5-DC3EventEfieldInputGenerator`**: Generates ZHAireS `.inp` files for the triggered events to run radio simulations.
+- **`DC3Common`**: Code shared by the stages. `OutputDatabase.py` handles an output database that already exists: the question whether to overwrite it, append to it or exit, and the `RunSettings` check that decides whether appending is possible.
 
 ---
 

@@ -19,6 +19,10 @@ import argparse
 import sqlite3
 import glob
 
+# What to do with an output database that already exists (issue #51), shared by the scripts that write one
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
+import OutputDatabase
+
 # ==============================================================================
 # ENVIRONMENT & IMPORTS
 # ==============================================================================
@@ -42,41 +46,6 @@ except ImportError:
     print("Error: Could not import AiresInfoFunctions from ZHAIRESPYTHON.")
     sys.exit(1)
 
-
-# ==============================================================================
-# EXISTING OUTPUT
-# ==============================================================================
-def ask_about_existing_output(db_path, cannot_append):
-    """
-    Asks what to do with an output database that already exists (issue #51): overwrite it, append to it, or
-    exit without touching it. cannot_append is None when appending is possible, or the reason it is not,
-    and then only overwrite and exit are offered. The answer is read from the standard input, so it can also
-    be piped in; with nothing to read (e.g. a batch job without input) the script exits.
-    Returns "overwrite" or "append".
-    """
-    if not os.path.isfile(db_path):
-        print(f"ERROR: The output database '{db_path}' exists but is not a file.")
-        sys.exit(1)
-    print(f"The output database already exists: '{db_path}'.")
-    if cannot_append:
-        print(f"It cannot be appended to: {cannot_append}.")
-        question, answers, valid = "Overwrite it (o) or exit (e)? ", {"o": "overwrite", "e": "exit"}, "o or e"
-    else:
-        question, answers, valid = ("Overwrite it (o), append to it (a) or exit (e)? ",
-                                    {"o": "overwrite", "a": "append", "e": "exit"}, "o, a or e")
-    while True:
-        print(question, end="", flush=True)
-        line = sys.stdin.readline()
-        if not line:
-            print("\nNo answer to read: exiting without touching the database.")
-            sys.exit(1)
-        answer = answers.get(line.strip().lower()[:1])
-        if answer == "exit":
-            print("Exiting without touching the database.")
-            sys.exit(1)
-        if answer:
-            return answer
-        print(f"Please answer {valid}.")
 
 # ==============================================================================
 # HELPER DATA CLEANERS (To match SimpleFluxGenerator.py formats)
@@ -122,7 +91,7 @@ def main():
     if os.path.exists(args.output_db):
         cannot_append = None
         try:
-            conn = sqlite3.connect(f"file:{os.path.abspath(args.output_db)}?mode=ro", uri=True)
+            conn = OutputDatabase.open_read_only(args.output_db)
             if "ShowerName" not in [col[1] for col in conn.execute("PRAGMA table_info(Showers)")]:
                 cannot_append = "it has no Showers table with a ShowerName column"
             else:
@@ -130,7 +99,7 @@ def main():
             conn.close()
         except sqlite3.DatabaseError:
             cannot_append = "it is not an SQLite database"
-        if ask_about_existing_output(args.output_db, cannot_append) == "overwrite":
+        if OutputDatabase.ask_about_existing_output(args.output_db, cannot_append) == "overwrite":
             overwrite = True
             existing = set()
         else:
@@ -197,9 +166,8 @@ def main():
 
     # 4. INSERT INTO DATABASE
     # You chose to overwrite it: the old database is deleted only now that the library has been read
-    if overwrite and os.path.exists(args.output_db):
-        os.remove(args.output_db)
-        print(f"Deleted the old '{args.output_db}'.")
+    if overwrite:
+        OutputDatabase.delete_old_output(args.output_db)
     conn = sqlite3.connect(args.output_db)
     cursor = conn.cursor()
 
