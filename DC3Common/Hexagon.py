@@ -4,9 +4,13 @@
 ################################################################################
 # Its centre is (center_n, center_w) in the array CS, its size hex_size is the
 # distance from the centre to a vertex, and its vertices lie on the north axis,
-# as rand_in_hex() in SimpleDC3EventGenerator.py draws the cores. A ring of it
-# is the part outside the hexagon of size hex_inner with the same centre and
-# orientation (hex_inner = 0 is the whole hexagon).
+# as rand_in_hex() below draws the cores. A ring of it is the part outside the
+# hexagon of size hex_inner with the same centre and orientation (hex_inner = 0
+# is the whole hexagon).
+#
+# SimpleDC3EventGenerator.py draws its cores with rand_in_ring(). Like the
+# rest of the EventGenerator, it uses numpy's global random generator, which
+# the EventGenerator seeds with EventSeed.
 #
 # Shared by the scripts of stage 4 that need the hexagon, which import it
 # like OutputDatabase.py.
@@ -35,3 +39,47 @@ def hex_radius(dn, dw):
 def area_km2(size, inner=0.0):
     """The area in km^2 of the ring between the hexagons of sizes inner and size, in m (inner = 0: the hexagon)."""
     return 1.5 * math.sqrt(3.0) * ((size / 1000.0) ** 2 - (inner / 1000.0) ** 2)
+
+
+def rand_in_hex(center, size):
+    """
+    Draws a uniform random point inside a hexagon using the 3-rhombus method.
+
+    Parameters:
+    -----------
+    center : numpy array (3,)
+        The (Northing, Westing, Up) center of the hexagon in meters.
+    size : float
+        The distance from the center to a vertex (radius) in meters.
+
+    Returns:
+    --------
+    point : numpy array (3,)
+        A random (Northing, Westing, Up) coordinate inside the hexagon.
+    """
+    vectors = [
+        np.array([-1.0, 0.0]),
+        np.array([0.5, math.sqrt(3.0)/2.0]),
+        np.array([0.5, -math.sqrt(3.0) / 2.0]),
+    ]
+
+    rhombus_idx = np.random.randint(0, 3)
+    v1 = vectors[rhombus_idx]
+    v2 = vectors[(rhombus_idx + 1) % 3]
+
+    u1, u2 = np.random.random(), np.random.random()
+    offset = size * (u1 * v1 + u2 * v2)
+
+    return np.array([center[0] + offset[0], center[1] + offset[1], center[2]])
+
+
+def rand_in_ring(center, size, inner):
+    """
+    Draws a uniform random point in the ring between the hexagons of sizes inner and size (same center and
+    orientation): points of the hexagon of size `size` are drawn until one is outside the inner hexagon. With
+    inner = 0 it is rand_in_hex(), and draws the same random numbers.
+    """
+    while True:
+        point = rand_in_hex(center, size)
+        if inner <= 0.0 or hex_radius(point[0] - center[0], point[1] - center[1])[0] >= inner:
+            return point

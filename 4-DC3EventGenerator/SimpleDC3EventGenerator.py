@@ -83,52 +83,6 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
     return triggered_indices, amplitudes
 
 # ==============================================================================
-# HEXAGON RANDOM SAMPLING
-# ==============================================================================
-def rand_in_hex(center, size):
-    """
-    Draws a uniform random point inside a hexagon using the 3-rhombus method.
-    
-    Parameters:
-    -----------
-    center : numpy array (3,)
-        The (Northing, Westing, Up) center of the hexagon in meters.
-    size : float
-        The distance from the center to a vertex (radius) in meters.
-        
-    Returns:
-    --------
-    point : numpy array (3,)
-        A random (Northing, Westing, Up) coordinate inside the hexagon.
-    """
-    vectors = [
-        np.array([-1.0, 0.0]),
-        np.array([0.5, math.sqrt(3.0)/2.0]),
-        np.array([0.5, -math.sqrt(3.0) / 2.0]),
-    ]
-    
-    rhombus_idx = np.random.randint(0, 3)
-    v1 = vectors[rhombus_idx]
-    v2 = vectors[(rhombus_idx + 1) % 3]
-    
-    u1, u2 = np.random.random(), np.random.random()
-    offset = size * (u1 * v1 + u2 * v2)
-    
-    return np.array([center[0] + offset[0], center[1] + offset[1], center[2]])
-
-
-def rand_in_ring(center, size, inner):
-    """
-    Draws a uniform random point in the ring between the hexagons of sizes inner and size (same center and
-    orientation): points of the hexagon of size `size` are drawn until one is outside the inner hexagon. With
-    inner = 0 it is rand_in_hex(), and draws the same random numbers.
-    """
-    while True:
-        point = rand_in_hex(center, size)
-        if inner <= 0.0 or Hexagon.hex_radius(point[0] - center[0], point[1] - center[1])[0] >= inner:
-            return point
-
-# ==============================================================================
 # DATABASE SETUP
 # ==============================================================================
 # The tables of the output database. Its RunSettings table records the settings it was written with, so that it is
@@ -508,7 +462,7 @@ def main():
             
             # Test cores_per_event core positions, without stopping at the first trigger (issue #47)
             for _ in range(cores_per_event):
-                core_try = rand_in_ring(center_pos, hex_size, hex_inner)
+                core_try = Hexagon.rand_in_ring(center_pos, hex_size, hex_inner)
                 # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
