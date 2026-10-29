@@ -8,7 +8,6 @@ With no arguments, the script shows the original Xmax diagnostic plots and
 prints the correct command-line syntax.
 """
 
-from asyncio import unix_events
 import sys
 import os
 import time
@@ -234,7 +233,7 @@ SHOWERS_TABLE_SQL = """
         ShowerNumber INTEGER PRIMARY KEY,
         ShowerName TEXT,
         RandomSeed TEXT,
-        ShowerWeight REAL,f
+        ShowerWeight REAL,
         PrimaryType TEXT,
         Energy_GeV REAL,
         Zenith_Deg REAL,
@@ -333,6 +332,7 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
         if column not in columns
     ]
 
+
     if missing_columns:
         raise ValueError(
             "Input DB is missing required column(s): "
@@ -360,6 +360,8 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
 
     cursor_out.execute(SHOWERS_TABLE_SQL)
     cursor_out.execute(RUN_SETTINGS_TABLE_SQL)
+
+    
     if run_settings:
         cursor_out.executemany("INSERT OR REPLACE INTO RunSettings (Name, Value) VALUES (?, ?)", run_settings.items())
 
@@ -419,6 +421,7 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
 
         if n_showers % 100 == 0:
             print(f"  Processed {n_showers} showers")
+
 
     # Insert computed showers into the output DB
     cursor_out.executemany("""

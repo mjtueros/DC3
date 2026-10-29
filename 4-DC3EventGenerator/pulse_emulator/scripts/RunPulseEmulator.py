@@ -121,7 +121,6 @@ def build_model(model_cfg, state_dict):
         var_head_dropout=pick("var_head_dropout" in cfg_model, cfg_model.get("var_head_dropout"), "var_head_dropout", 0.0),
         var_head_layer_norm=pick("var_head_layer_norm" in cfg_model, cfg_model.get("var_head_layer_norm"), "var_head_layer_norm", False),
     )
-    print(f"Model built from config; not in config (taken from state dict / defaults): {sorted(set(fallbacks))}")
     return model
 
 def load_model_and_config(cfg):
@@ -203,7 +202,7 @@ def generate_shower(entries, model, model_cfg, antenna_pos, t_SN, t_EW, t_Z, tf_
     mask = valid[:, 1] > 0.2
 
 
-    if voltage or ADC:
+    if voltage:
         if deterministic:
             voltage_traces_valid = predict_voltage(input_arr[mask], kxB, antenna_pos[mask], xmax_pos, model.mlp_model, 500, t_SN, t_EW, t_Z, tf_ds, muV=True) #in µV
         else:
@@ -278,7 +277,10 @@ if __name__ == "__main__":
         ADC=properties["ADC"]
     )
 
-    generated_trace = np.array(generated_trace[0])
+    if voltage == False:
+        generated_trace = np.array(np.real(generated_trace[0]))
+    else:
+        generated_trace = np.array(generated_trace[0])
 
     np.save("generated_trace.npy", generated_trace)
     

@@ -14,29 +14,29 @@ def AntennaInterpolator(MainPath, zenith, azimuth, E_em, XmaxPos, AntennaPositio
     """
     Assume XmaxPos and AntennaPositinos are given with z = 0 at site
     Parameters:
-    MainPath: Path to this code from DC3 (or from where this code is run)
+    MainPath: Path to the folder containing this code (from DC3 or from where this code is run)
     zenith : zenith angle in rad
     azimuth : azimuth angle in rad
-    E_em : electromagnetic energy of the shower GeV
-    XmaxPos : position of the shower maximum in m, shape (3,)
-    AntennaPositions : positions of the antennas in m, shape (Nants, 3)
-    PathToPython : path to the python interpreter to run the RunPulseEmulator.py script
+    E_em : electromagnetic energy of the shower in GeV
+    XmaxPos : position of the shower maximum in meters, shape (3,)
+    AntennaPositions : positions of the antennas in meters, shape (Nants, 3)
+    PathToPython : path to the python interpreter to run the RunPulseEmulator.py script ; to be set in the ini file
 
-    Returns du_ids of the antennas with a signal above threshold (50 uV/m)
+    Returns either the voltage traces (in adc or not) or the electric field traces ; 
+    traces for the electric field are not filtered here
     """
 
     XmaxPos = XmaxPos + np.array([0, 0, 1264]) # add the altitude of the site to the Xmax position    
     AntennaPositions = AntennaPositions + np.array([0, 0, 1264]) # add the altitude of the site to the antenna positions
 
-    PathToRun = os.path.join(MainPath, 'RunPulseEmulator.py')
+    PathToRun = 'RunPulseEmulator.py'
 
 
     """
     interpolate the signal at given antenna positions
     """
 
-
-    path_to_parameters = os.path.join(MainPath, 'scripts/parameters.json')
+    path_to_parameters = os.path.join(MainPath, 'parameters.json')
     with open(path_to_parameters, "w") as f:
         inputs = {
             "zenith": zenith,
@@ -51,21 +51,15 @@ def AntennaInterpolator(MainPath, zenith, azimuth, E_em, XmaxPos, AntennaPositio
 
     result = subprocess.run(
     [str(PathToPython), PathToRun],
-    cwd=os.path.join(MainPath, 'scripts'),
+    cwd=MainPath,
     capture_output=True,
     text=True
-)
-
+    )
 
     ### load the traces 
-    GeneratedTraces = np.load(os.path.join(MainPath, 'scripts/generated_trace.npy')) # shape is Nants, 3, Nsamples (here 1)
-    SelectedDUs = SelectDUs(GeneratedTraces, threshold=50)
+    GeneratedTraces = np.load(os.path.join(MainPath, 'generated_trace.npy')) # shape is Nants, 3, Nsamples (here 1)
 
-    return du_ids[SelectedDUs]
-
-
-
-
+    return GeneratedTraces
 
 
 
