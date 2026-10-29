@@ -69,7 +69,7 @@ if natural_geometry not in GEOMETRIES:
     sys.exit(1)
 
 # Setting seed for random number generator
-FluxSeed = sec.getint("FluxSeed", fallback=random.random())
+FluxSeed = sec.getint("FluxSeed", fallback=int(random.random()*1e6)
 # Initializing both random number generators, as they are independent.
 random.seed(FluxSeed)
 np.random.seed(FluxSeed)
