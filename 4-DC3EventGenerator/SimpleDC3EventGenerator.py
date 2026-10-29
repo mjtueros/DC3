@@ -15,6 +15,7 @@ from VisualsEventGenerator import (visualize_cores, visualize_distributions,visu
 # What to do with an output database that already exists (issue #51), shared by the scripts that write one
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
 import OutputDatabase
+import Hexagon
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -115,6 +116,18 @@ def rand_in_hex(center, size):
     
     return np.array([center[0] + offset[0], center[1] + offset[1], center[2]])
 
+
+def rand_in_ring(center, size, inner):
+    """
+    Draws a uniform random point in the ring between the hexagons of sizes inner and size (same center and
+    orientation): points of the hexagon of size `size` are drawn until one is outside the inner hexagon. With
+    inner = 0 it is rand_in_hex(), and draws the same random numbers.
+    """
+    while True:
+        point = rand_in_hex(center, size)
+        if inner <= 0.0 or Hexagon.hex_radius(point[0] - center[0], point[1] - center[1])[0] >= inner:
+            return point
+
 # ==============================================================================
 # DATABASE SETUP
 # ==============================================================================
@@ -165,6 +178,9 @@ EVENT_TABLES_SQL = """
         CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
         CREATE INDEX IF NOT EXISTS idx_triggered_ant_event ON TriggeredAntennas(EventID);
     """
+# Settings added after the first databases were written, with the value those were written with: hex_inner is
+# only recorded when it is not 0, so a database without it was written with the whole hexagon.
+SETTING_DEFAULTS = {"hex_inner": "0.0"}
 
 def init_database(db_path, run_settings=None):
     """
@@ -185,7 +201,8 @@ def append_problem(db_path, run_settings, showers_db):
     events of showers of the input database showers_db, so that its events and the new ones are simulated and
     weighted the same way.
     """
-    problem = OutputDatabase.settings_problem(db_path, EVENT_TABLES_SQL, run_settings, "EventGenerator")
+    problem = OutputDatabase.settings_problem(db_path, EVENT_TABLES_SQL, run_settings, "EventGenerator",
+                                              SETTING_DEFAULTS)
     if problem:
         return problem
     try:
@@ -293,6 +310,13 @@ def main():
     center_w = sec.getfloat("center_w", fallback=0.0)
     center_u = sec.getfloat("center_u", fallback=1250.0)
     hex_size = sec.getfloat("hex_size", fallback=7000.0)
+    # The cores can be drawn in a ring of the hexagon instead of the whole of it: outside the hexagon of size
+    # hex_inner, with the same center and orientation. Libraries of rings that do not overlap make up a library
+    # of the whole area in which the outskirts get as many events as the center (see the README).
+    hex_inner = sec.getfloat("hex_inner", fallback=0.0)
+    if hex_inner < 0.0 or (hex_inner > 0.0 and hex_inner >= hex_size):
+        print("ERROR: hex_inner must be at least 0 and smaller than hex_size.")
+        sys.exit(1)
     cone_angle = sec.getfloat("cone_angle", fallback=1.0)
     min_trigger = sec.getint("min_trigger", fallback=3)
     # Every shower tests the same number of core positions, so that the fraction that triggers is an unbiased
@@ -322,6 +346,8 @@ def main():
     print(f"Output DB:       {out_db}")
     print(f"Hexagon Center:  ({center_n}, {center_w}, {center_u}) m")
     print(f"Hexagon Size:    {hex_size} m")
+    if hex_inner > 0.0:
+        print(f"Inner Hexagon:   {hex_inner} m (cores drawn in the ring between the two)")
     print(f"Cone Angle:      {cone_angle} deg")
     print(f"Min Trigger:     {min_trigger} antennas")
     print(f"Cores per Event: {cores_per_event}")
@@ -357,6 +383,8 @@ def main():
         "dist_min": repr(dist_min),
         "dist_max": repr(dist_max),
     }
+    if hex_inner > 0.0:
+        run_settings["hex_inner"] = repr(hex_inner)
     # An existing output database is only changed if you say so (issue #51): overwrite it, append the events
     # that are not in it yet, or exit. A dry run writes no database, so it does not ask.
     existing_events, appending, overwrite = set(), False, False
@@ -411,10 +439,11 @@ def main():
 
     print(f"Processing showers from {showers_db} (Reuse factor: {reuse})...")
     center_pos = np.array([center_n, center_w, center_u])
-    # Area of the hexagon the cores are drawn in (km^2). A natural weight (showers per km^2 of ground per year, the
-    # FluxGenerator's natural_geometry = flat) times this area and the trigger probability gives the triggered events
-    # per year that an event stands for. A sphere weight is per km^2 across the shower: 1/cos(zenith) times larger.
-    hex_area_km2 = 1.5 * math.sqrt(3.0) * (hex_size / 1000.0) ** 2
+    # Area of the hexagon, or of its ring, the cores are drawn in (km^2). A natural weight (showers per km^2 of ground
+    # per year, the FluxGenerator's natural_geometry = flat) times this area and the trigger probability gives the
+    # triggered events per year that an event stands for, so the rates of rings that do not overlap add up. A sphere
+    # weight is per km^2 across the shower: 1/cos(zenith) times larger.
+    hex_area_km2 = Hexagon.area_km2(hex_size, hex_inner)
     
     success_count = 0
     event_count = 0
@@ -479,7 +508,7 @@ def main():
             
             # Test cores_per_event core positions, without stopping at the first trigger (issue #47)
             for _ in range(cores_per_event):
-                core_try = rand_in_hex(center_pos, hex_size)
+                core_try = rand_in_ring(center_pos, hex_size, hex_inner)
                 # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)

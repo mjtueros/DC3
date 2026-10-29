@@ -3,7 +3,8 @@
 # What to do with an output database that already exists (issue #51)
 ################################################################################
 # Shared by the scripts that write a database: SimpleFluxGenerator.py,
-# RebuildAiresFluxDatabase.py, SimpleXmaxGetter.py and SimpleDC3EventGenerator.py.
+# RebuildAiresFluxDatabase.py, SimpleXmaxGetter.py, SimpleDC3EventGenerator.py,
+# CombineHexRings.py and TriggerProbabilityMap.py.
 #
 # A script goes ahead without asking only when its output database does not
 # exist. When it exists, ask_about_existing_output() asks whether to overwrite
@@ -65,12 +66,14 @@ def open_read_only(db_path):
     return sqlite3.connect(Path(db_path).resolve().as_uri() + "?mode=ro", uri=True)
 
 
-def settings_problem(db_path, tables_sql, run_settings, script):
+def settings_problem(db_path, tables_sql, run_settings, script, defaults=None):
     """
     Why the existing database db_path cannot be appended to, or None if it can as far as its tables and
     settings go: it must have the tables that tables_sql creates (the tables the script writes) and
     RunSettings, each with the same columns, and its RunSettings must hold the values of run_settings.
-    script names the script in the messages, e.g. "XmaxGetter".
+    script names the script in the messages, e.g. "XmaxGetter". defaults holds the settings that were added
+    after the first databases were written, each with the value those databases were written with: a
+    database, or a run, without such a setting is taken to have that value.
     """
     expected = sqlite3.connect(":memory:")
     try:
@@ -96,8 +99,11 @@ def settings_problem(db_path, tables_sql, run_settings, script):
             return "it is not an SQLite database"
     finally:
         expected.close()
-    changed = [f"{name} {stored.get(name, '(not recorded)')} instead of {value}"
-               for name, value in run_settings.items() if stored.get(name) != value]
+    defaults = defaults or {}
+    current = {**defaults, **run_settings}
+    names = list(run_settings) + [name for name in defaults if name not in run_settings]
+    changed = [f"{name} {stored.get(name, defaults.get(name, '(not recorded)'))} instead of {current[name]}"
+               for name in names if stored.get(name, defaults.get(name)) != current[name]]
     if changed:
         return "it was written with other settings (" + "; ".join(changed) + ")"
     return None
