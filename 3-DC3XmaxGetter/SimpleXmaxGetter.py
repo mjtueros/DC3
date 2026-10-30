@@ -22,48 +22,9 @@ from scipy.optimize import brentq
 # What to do with an output database that already exists (issue #51), shared by the scripts that write one
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
 import OutputDatabase
+import utils
 
-def resolve_ini_path(config_file_path, path_str):
-    """
-    Resolves a path from the INI file. If relative, it is strictly resolved
-    relative to the directory containing the INI file.
-    """
-    if not path_str or not path_str.strip():
-        return ""
-    path_str = path_str.strip()
-    if os.path.isabs(path_str):
-        return path_str
-    config_dir = os.path.dirname(os.path.abspath(config_file_path))
-    return os.path.abspath(os.path.join(config_dir, path_str))
-
-def pause_for_review(timeout=5.0):
-    """
-    Pauses for `timeout` seconds to let the user review configuration.
-    If a key is pressed during the countdown, execution pauses until another
-    key is pressed, then resumes.
-    """
-    print(f"Proceeding in {int(timeout)} seconds. Press any key to pause and review...")
-    if not sys.stdin.isatty():
-        time.sleep(timeout)
-        return
-
-    import termios
-    import tty
-
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setcbreak(fd)
-        rlist, _, _ = select.select([sys.stdin], [], [], timeout)
-        if rlist:
-            _ = sys.stdin.read(1)
-            print("\n[PAUSED] Configuration review paused. Press any key to resume...")
-            _ = sys.stdin.read(1)
-            print("Resuming execution...\n")
-        else:
-            print("Continuing...\n")
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+AiresInfo, AiresInp = utils.get_zhairestools_path()
 
 
 # ==============================================================================
@@ -324,7 +285,6 @@ def process_sqlite(input_file, output_file, librarytype, librarydir=".", detecto
                 ShowerName=row["ShowerName"]
                 sryfile=librarydir+"/"+ShowerName+"/"+ShowerName+".sry"
                 print("tryng",sryfile)
-                import AiresInfoFunctions as AiresInfo
                 alt,distance,Xmaxx,Xmaxy,Xmaxz =AiresInfo.GetKmXmaxFromSry(sryfile)
                 xmax=AiresInfo.GetSlantXmaxFromSry(sryfile) 
                 print(alt,distance,xmax)
@@ -506,25 +466,15 @@ def show_plots():
 # ==============================================================================
 
 def main():
-    if len(sys.argv) != 2:
-        print(f"Usage: python3 {os.path.basename(sys.argv[0])} <config.ini>")
-        sys.exit(1)
-
-    config_file = os.path.abspath(sys.argv[1])
-    if not os.path.isfile(config_file):
-        print(f"ERROR: Configuration file '{config_file}' not found.")
-        sys.exit(1)
-
-    config = configparser.ConfigParser()
-    config.read(config_file)
+    config_file, config = utils.parse_config_argv(sys.argv)
 
     if "XmaxGetter" not in config:
         print(f"ERROR: Section [XmaxGetter] not found in '{config_file}'.")
         sys.exit(1)
 
     sec = config["XmaxGetter"]
-    input_file = resolve_ini_path(config_file, sec.get("InputFile", fallback="ExampleFlux.sqlite"))
-    output_file = resolve_ini_path(config_file, sec.get("OutputFile", fallback="ExampleFluxWithXmax.sqlite"))
+    input_file = utils.resolve_ini_path(config_file, sec.get("InputFile", fallback="ExampleFlux.sqlite"))
+    output_file = utils.resolve_ini_path(config_file, sec.get("OutputFile", fallback="ExampleFluxWithXmax.sqlite"))
     detector_alt_km = sec.getfloat("detector_alt_km", fallback=1.4)
     show_plots_flag = sec.getboolean("show_plots", fallback=False)
     librarytype = sec.get("LibraryType", fallback="Dummy")
@@ -558,40 +508,6 @@ def main():
     if out_dir and not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
-    if librarytype == "ZHAireS":
-        librarydir=resolve_ini_path(config_file,librarydir)
-    
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        repo_root = os.path.abspath(os.path.join(script_dir, ".."))
-
-        candidate_dirs = [
-            os.environ.get("ZHAIRESPYTHON", ""),
-            os.path.join(repo_root, "ZHAireSPython"),
-            os.path.join(os.getcwd(), "ZHAireSPython"),
-            os.getcwd(),
-            script_dir,
-        ]
-
-        zhaires_path = None
-        for cdir in candidate_dirs:
-            if cdir and os.path.isfile(os.path.join(cdir, "AiresInfoFunctions.py")) and os.path.isfile(os.path.join(cdir, "AiresInpFunctions.py")):
-                zhaires_path = cdir
-                break
-
-        if zhaires_path is None:
-            print("Error: Could not locate AiresInfoFunctions.py and AiresInpFunctions.py.")
-            print("Please set the ZHAIRESPYTHON environment variable to the directory containing them.")
-            sys.exit(1)
-
-        sys.path.append(os.path.abspath(zhaires_path))
-
-        try:
-            import AiresInfoFunctions as AiresInfo
-            import AiresInpFunctions as AiresInp
-        except ImportError as e:
-            print(f"Error: Could not import AiresInfoFunctions or AiresInpFunctions from '{zhaires_path}': {e}")
-            sys.exit(1)
-
     # The settings an existing output database must have been written with to be appended to
     run_settings = {
         "InputFile": OutputDatabase.path_setting(input_file, output_file),
@@ -609,7 +525,7 @@ def main():
         else:
             overwrite = True
 
-    pause_for_review(5.0)
+    utils.pause_for_review(5.0)
 
     if show_plots_flag:
         show_plots()
