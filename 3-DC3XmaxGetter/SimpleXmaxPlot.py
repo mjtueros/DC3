@@ -35,12 +35,12 @@ def plot_xmax_vs_energy(db_path, num_bins=10, plot_path=None):
     data_by_primary = {}
     all_logE = []
 
-    for primary, energy_eev, xmax in rows:
+    for primary, energy_gev, xmax in rows:
         if primary not in data_by_primary:
             data_by_primary[primary] = {'logE': [], 'xmax': []}
             
         # Convert GeV to eV, then take log10
-        log_e = np.log10(energy_eev * 1e9)
+        log_e = np.log10(energy_gev * 1e9)
         
         data_by_primary[primary]['logE'].append(log_e)
         data_by_primary[primary]['xmax'].append(xmax)
