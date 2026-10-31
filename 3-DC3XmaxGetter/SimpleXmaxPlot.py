@@ -2,32 +2,12 @@ import sys
 import sqlite3
 import numpy as np
 import matplotlib.pyplot as plt
-
-# ==============================================================================
-# ELONGATION RATE MODEL (Theoretical Lines)
-# ==============================================================================
-def get_xmax(energy_eV, particle_type="Mixed"):
-    """
-    Returns the theoretical Xmax (in g/cm^2) for a given energy and primary.
-    """
-    log_E = np.log10(energy_eV)
-
-    if particle_type.lower() == "proton":
-        return 790.0 + 58.0 * (log_E - 19.0)
-    elif particle_type.lower() == "iron":
-        return 690.0 + 58.0 * (log_E - 19.0)
-    elif particle_type.lower() == "mixed":
-        break_point = 18.3
-        xmax_at_break = 745.0
-        elongation_rate = 79.0 if log_E <= break_point else 26.0
-        return xmax_at_break + elongation_rate * (log_E - break_point)
-    else:
-        raise ValueError("particle_type must be 'Proton', 'Iron', or 'Mixed'")
+from DummyXmaxGetter import get_xmax  # Importing the theoretical Xmax function
 
 # ==============================================================================
 # DATABASE PROCESSING AND PLOTTING
 # ==============================================================================
-def plot_xmax_vs_energy(db_path, num_bins=10):
+def plot_xmax_vs_energy(db_path, num_bins=10, plot_path=None):
     print(f"Connecting to database: {db_path}...")
     
     # 1. Read Data from SQLite
@@ -139,13 +119,21 @@ def plot_xmax_vs_energy(db_path, num_bins=10):
     plt.grid(True, which="both", linestyle='--', alpha=0.6)
     plt.legend(fontsize=11, loc='upper left')
     plt.tight_layout()
-    plt.show()
+    if plot_path:
+        plt.savefig(plot_path, dpi=300)
+        print(f"Plot saved to {plot_path}")
+    else:
+        plt.show()
 
 # ==============================================================================
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python PlotXmaxElongation.py <DatabaseWithXmax.sqlite>")
+        print("Usage: python SimpleXmaxPlot.py <DatabaseWithXmax.sqlite> [plot_xmax_vs_energy.png]")
         sys.exit(1)
         
     db_file = sys.argv[1]
-    plot_xmax_vs_energy(db_file, num_bins=10)
+    if len(sys.argv) == 3:
+        output_file = sys.argv[2]
+        plot_xmax_vs_energy(db_file, num_bins=10, plot_path=output_file)
+    else:
+        plot_xmax_vs_energy(db_file, num_bins=10)
