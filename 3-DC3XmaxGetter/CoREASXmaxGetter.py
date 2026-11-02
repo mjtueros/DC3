@@ -349,6 +349,26 @@ def extract_Xmax_long(long_file):
             return Xmax
     raise ValueError("XMAX not found in the longitudinal profile file.")
 
+def extract_smax_reas(reas_file):
+    """
+    Extract s_max from a CORSIKA .reas file.
+    
+    Parameters:
+    reas_file : str
+        Path to the CORSIKA .reas file.
+    Returns:
+    s_max : float
+        Distance along the shower axis to Xmax (in cm).
+    """
+    with open(reas_file, 'r') as f:
+        lines = f.readlines()
+    for line in lines:
+        if line.strip().startswith("DistanceOfShowerMaximum"):
+            # Example line: DistanceOfShowerMaximum = 3263200
+            s_max = float(line.strip().split()[2])
+            return s_max
+    raise ValueError("S_MAX not found in the .reas file.")
+
 def read_inp_file(inp_file):
     """
     Read a CORSIKA input file and extract relevant parameters.
@@ -458,16 +478,27 @@ def calculate_event_xmax(row, librarydir):
     # Construct the full paths to the long file and input file
     long_file = os.path.join(ShowerDir, long_file_name)
     inp_file = os.path.join(ShowerDir, f"SIM{runnr}.inp")
-
-    # Extract parameters relevant to xmax position calculation
-    atm_params, obslev = read_inp_file(inp_file)
-    if runnr == "000144":
-        print(f"Using atmospheric parameters: {atm_params}")
-        print(f"Observation level: {obslev} cm")
+    reas_file = os.path.join(ShowerDir, f"SIM{runnr}.reas")
+    if not os.path.exists(long_file) or not os.path.exists(inp_file):
+        raise FileNotFoundError(f"Required files for run {runnr} not found in {ShowerDir}: {long_file} or {inp_file}")
+    
     # Extract Xmax from the longitudinal profile file
     xmax = extract_Xmax_long(long_file)
-    # Compute the XYZ coordinates of the point along the shower axis corresponding to Xmax
-    _, _, _, alt, distance = compute_XYZ_max(s_step=10, Xmax=xmax, obslev=obslev, theta=zenith_rad, phi=azimuth_rad, R_E=R_E, params=atm_params)
+    # Extract parameters relevant to xmax position calculation
+    atm_params, obslev = read_inp_file(inp_file)
+
+    if not os.path.exists(reas_file):
+        # Compute the XYZ coordinates of the point along the shower axis corresponding to Xmax
+        _, _, _, alt, distance = compute_XYZ_max(s_step=10, Xmax=xmax, obslev=obslev, theta=zenith_rad, phi=azimuth_rad, R_E=R_E, params=atm_params)
+    else:
+        # If the .reas file exists, we can read the distance to shower core directly from it
+        try:
+            distance = extract_smax_reas(reas_file)
+            alt = s2h(distance, obslev=obslev, theta=zenith_rad, R_E=R_E)
+        except Exception as e:
+            print(f"Error extracting s_max from .reas file: {e}. Falling back to compute_XYZ_max.")
+            _, _, _, alt, distance = compute_XYZ_max(s_step=10, Xmax=xmax, obslev=obslev, theta=zenith_rad, phi=azimuth_rad, R_E=R_E, params=atm_params)
+
     # Comvert distance and altitude from cm to km
     distance /= 1e5  # cm to km
     alt /= 1e5  # cm to km
