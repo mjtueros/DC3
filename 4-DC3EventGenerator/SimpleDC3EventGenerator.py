@@ -16,6 +16,7 @@ from VisualsEventGenerator import (visualize_cores, visualize_distributions,visu
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
 import OutputDatabase
 import Hexagon
+import utils
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -180,66 +181,11 @@ def append_problem(db_path, run_settings, showers_db):
         return f"{len(foreign)} of its events are of showers that are not in the input database (first: {foreign[0]})"
     return None
 
-import time
-import select
-
-def resolve_ini_path(config_file_path, path_str):
-    """
-    Resolves a path from the INI file. If relative, it is strictly resolved
-    relative to the directory containing the INI file.
-    """
-    if not path_str or not path_str.strip():
-        return ""
-    path_str = path_str.strip()
-    if os.path.isabs(path_str):
-        return path_str
-    config_dir = os.path.dirname(os.path.abspath(config_file_path))
-    return os.path.abspath(os.path.join(config_dir, path_str))
-
-def pause_for_review(timeout=5.0):
-    """
-    Pauses for `timeout` seconds to let the user review configuration.
-    If a key is pressed during the countdown, execution pauses until another
-    key is pressed, then resumes.
-    """
-    print(f"Proceeding in {int(timeout)} seconds. Press any key to pause and review...")
-    if not sys.stdin.isatty():
-        time.sleep(timeout)
-        return
-
-    import termios
-    import tty
-
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setcbreak(fd)
-        rlist, _, _ = select.select([sys.stdin], [], [], timeout)
-        if rlist:
-            _ = sys.stdin.read(1)
-            print("\n[PAUSED] Configuration review paused. Press any key to resume...")
-            _ = sys.stdin.read(1)
-            print("Resuming execution...\n")
-        else:
-            print("Continuing...\n")
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
 # ==============================================================================
 # MAIN GENERATOR
 # ==============================================================================
 def main():
-    if len(sys.argv) != 2:
-        print(f"Usage: python3 {os.path.basename(sys.argv[0])} <config.ini>")
-        sys.exit(1)
-
-    config_file = os.path.abspath(sys.argv[1])
-    if not os.path.isfile(config_file):
-        print(f"ERROR: Configuration file '{config_file}' not found.")
-        sys.exit(1)
-
-    config = configparser.ConfigParser()
-    config.read(config_file)
+    config_file, config = utils.parse_config_argv(sys.argv)
 
     if "EventGenerator" not in config:
         print(f"ERROR: Section [EventGenerator] not found in '{config_file}'.")
@@ -247,16 +193,16 @@ def main():
 
     sec = config["EventGenerator"]
 
-    showers_db = resolve_ini_path(
+    showers_db = utils.resolve_ini_path(
         config_file, sec.get("showers_db", fallback="ExampleFluxWithXmax.sqlite")
     )
-    antennas_csv = resolve_ini_path(
+    antennas_csv = utils.resolve_ini_path(
         config_file,
         sec.get(
             "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"
         ),
     )
-    out_db = resolve_ini_path(
+    out_db = utils.resolve_ini_path(
         config_file, sec.get("out_db", fallback="TriggeredEvents.sqlite")
     )
     
@@ -288,7 +234,7 @@ def main():
     dist_max = sec.getfloat("dist_max", fallback=1000.0)
     
     dry_run = sec.getboolean("dry_run", fallback=False)
-    EventSeed = sec.getint("EventSeed", fallback=np.random.random())
+    EventSeed = sec.getint("EventSeed", fallback=np.random.randint(0, 2**31))
     np.random.seed(EventSeed)
 
     print("#########################################################")
@@ -351,7 +297,7 @@ def main():
         else:
             overwrite = True
 
-    pause_for_review(5.0)
+    utils.pause_for_review(5.0)
 
     # 1. LOAD ANTENNAS
     if not os.path.exists(antennas_csv):
