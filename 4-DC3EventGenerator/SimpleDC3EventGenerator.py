@@ -8,6 +8,7 @@ import select
 import sqlite3
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 from VisualsEventGenerator import (visualize_cores, visualize_distributions,visualize_xmax, visualize_xmaxfits)
@@ -16,6 +17,11 @@ from VisualsEventGenerator import (visualize_cores, visualize_distributions,visu
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
 import OutputDatabase
 import Hexagon
+
+# Arsène's pulse emulator, in pulse_emulator/ next to this script, found wherever the script is run from
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.append(str(SCRIPT_DIR / "pulse_emulator"))
+import AntennaInterpolator as emulator_AntennaInterpolator # Arsène’s emulator to interpolate the traces at given positions
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -81,6 +87,31 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
         amplitudes[i] = (1.0 / (d_km**2 + 0.1)) * math.cos(math.radians(angle))
 
     return triggered_indices, amplitudes
+
+
+# =============================================================================
+# Select antennas with signal above threshold (using the Emulated traces)
+
+def select_DUs_emulated_traces(GeneratedTraces, du_ids, threshold = 50):
+    """
+    Select antennas with signal above threshold
+    GeneratedTraces : numpy array of shape (Nants, 3, Nsamples)
+    du_ids : list
+        The IDs of the DUs to consider.
+
+    threshold : float
+        The signal threshold (E-field or voltage ADC ?)
+    
+    Returns:
+    array of DU_ids that meets the selected criteria
+    """
+    SelectedDUs = np.where(np.max(GeneratedTraces, axis=(1, 2)) > threshold)[0] # should check that maybe
+    triggering_DUs = np.array(du_ids)[SelectedDUs]
+
+    return triggering_DUs
+
+
+# =============================================================================
 
 # ==============================================================================
 # DATABASE SETUP
@@ -289,6 +320,11 @@ def main():
     
     dry_run = sec.getboolean("dry_run", fallback=False)
     EventSeed = sec.getint("EventSeed", fallback=np.random.random())
+    # Arsène's pulse emulator (pulse_emulator/README.md), off unless asked for. It runs in the Python of the environment it is
+    # installed in (torch, scikit-learn 1.3): by default the one running this script, otherwise give its full path.
+    use_pulse_emulator = sec.getboolean("use_pulse_emulator", fallback=False)
+    pulse_emulator_python = sec.get("pulse_emulator_python", fallback=sys.executable)
+
     np.random.seed(EventSeed)
 
     print("#########################################################")
@@ -308,6 +344,7 @@ def main():
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
+    print(f"Pulse Emulator:  {'on, run with ' + pulse_emulator_python if use_pulse_emulator else 'off'}")
     print("#########################################################")
 
     if not os.path.isfile(showers_db):
@@ -429,6 +466,14 @@ def main():
         energy_GeV = float(row['Energy_GeV']) 
         original_weight = float(row['ShowerWeight'])
         primary = str(row["PrimaryType"])
+
+        ######## get the electromagnetic energy of the shower, # this needs to be changed but I want it working for now for the emulator (I don’t think it’s available yet)
+        try:
+            E_em_GeV = float(row['Energy_EM_GeV'])
+        except IndexError:
+            E_em_GeV = energy_GeV 
+        ########
+
         # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
         natural_weight = row['NaturalWeight'] if 'NaturalWeight' in row.keys() else None
         
@@ -467,6 +512,14 @@ def main():
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
                 trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
+
+                if use_pulse_emulator:
+                    # setting voltage = False : traces become E field (and ADC becomes useless)
+                    emulated_traces = emulator_AntennaInterpolator.AntennaInterpolator(
+                        SCRIPT_DIR / "pulse_emulator" / "scripts", np.radians(zenith), np.radians(azimuth), E_em_GeV,
+                        xmax_try, ant_pos, pulse_emulator_python, voltage=True, ADC=True)
+                    # Not used yet: the trigger below still comes from the cone
+                    triggering_dus = select_DUs_emulated_traces(emulated_traces, ant_ids)
                 
                 hit = len(trig_try) >= min_trigger
                 tested_cores.append((core_try, hit))
