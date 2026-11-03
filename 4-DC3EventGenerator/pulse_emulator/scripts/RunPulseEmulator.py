@@ -6,7 +6,8 @@ import numpy as np
 import torch
 
 
-sys.path.append("./../DU_response_computation/")
+# RFchain_computation (make_input), in pulse_emulator/DU_response_computation (see the README), wherever this runs from
+sys.path.append(str(Path(__file__).resolve().parent.parent / "DU_response_computation"))
 from make_input import load_input_params_from_dict
 
 from pulse_emulator.data.input_formating import make_input_array
@@ -22,28 +23,15 @@ from pulse_emulator.surrogate.models import (
 
 sys.path.append('scripts/')  
 import joblib
-from local_paths import BASE_MODEL_PATH, BASE_ROOT, RF_PARAMS_CONFIG_FILE
+from local_paths import BASE_MODEL_PATH, RF_PARAMS_CONFIG_FILE
 
 CONFIG = {
     "paths": {
         "base_model_path": BASE_MODEL_PATH,
         "model_subdir": "moriond/last_train_betercov/",
         "params_file": RF_PARAMS_CONFIG_FILE,
-        "antenna_pos": "./../4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv",
     },
 }
-
-def load_antenna_positions(cfg):
-    """
-    Load antenna positions from a CSV file.
-    """
-    
-    antenna_pos_path = Path(cfg["paths"]["antenna_pos"])
-    if antenna_pos_path.exists():
-        return np.genfromtxt(cfg["paths"]["antenna_pos"], delimiter=",")[:, [1, 8, 9, 10]]
-    else:
-        raise RuntimeError("Antenna positions file not found.")
-    
 
 # Loss names that imply an uncertainty head (see scripts/train/train_models.py).
 COVAR_HEAD_LOSSES = {"hetero_nll_cov", "covariance_nll"}
@@ -215,19 +203,17 @@ def generate_shower(entries, model, model_cfg, antenna_pos, t_SN, t_EW, t_Z, tf_
             return adc_traces
         return voltage_traces
     else:
-        pred_kxB_valid, pred_kxB_fft = pred_trace_kxB(model, input_arr, fs=500)  
+        pred_kxB_valid, pred_kxB_fft = pred_trace_kxB(model.mlp_model, input_arr[mask], fs=500)
         if kxB.ndim == 1:
             preds_3d_valid = pred_kxB_valid[:, None, :] * kxB[None, :, None]
         else:
-            preds_3d_valid = pred_kxB_valid[:, None, :] * kxB[:, :, None]
+            preds_3d_valid = pred_kxB_valid[:, None, :] * kxB[mask][:, :, None]
         preds_3d = np.zeros((n_ants, 3, pred_kxB_valid.shape[1]), dtype=complex)
         preds_3d[mask] = preds_3d_valid
         return preds_3d
     
-def main(thetas, phis, eems, xmax_poss, antenna_pos=None, voltage=True, ADC=True):
+def main(thetas, phis, eems, xmax_poss, antenna_pos, voltage=True, ADC=True):
     model, model_cfg = load_model_and_config(CONFIG)
-    if antenna_pos is None:
-        antenna_pos = load_antenna_positions(CONFIG)
 
 
     with open(CONFIG["paths"]["params_file"], "r") as f:
@@ -257,15 +243,16 @@ def main(thetas, phis, eems, xmax_poss, antenna_pos=None, voltage=True, ADC=True
             "theta": theta,
             "phi": phi,
         }
-        trace = generate_shower(inputs, model, model_cfg, antenna_pos, t_sn, t_ew, t_z, tf_ds, voltage=True, ADC=True)
+        trace = generate_shower(inputs, model, model_cfg, antenna_pos, t_sn, t_ew, t_z, tf_ds, voltage=voltage, ADC=ADC)
         all_traces.append(trace)
     return all_traces
 
 if __name__ == "__main__":
-
-    with open("parameters.json", "r") as f:
+    # The inputs, and the file to write the traces to, from AntennaInterpolator
+    path_to_parameters, path_to_traces = sys.argv[1], sys.argv[2]
+    with open(path_to_parameters, "r") as f:
         properties = json.load(f)
-   
+    voltage = properties["voltage"]
 
     generated_trace = main(
         thetas= [properties["zenith"]],
@@ -273,7 +260,7 @@ if __name__ == "__main__":
         eems= [properties["energy_em"]],
         xmax_poss= [np.array(properties["xmax_pos"])],
         antenna_pos=np.array(properties["AntennaPositions"]),
-        voltage=properties["voltage"],
+        voltage=voltage,
         ADC=properties["ADC"]
     )
 
@@ -282,5 +269,4 @@ if __name__ == "__main__":
     else:
         generated_trace = np.array(generated_trace[0])
 
-    np.save("generated_trace.npy", generated_trace)
-    
+    np.save(path_to_traces, generated_trace)

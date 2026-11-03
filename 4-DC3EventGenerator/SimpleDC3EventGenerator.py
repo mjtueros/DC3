@@ -8,16 +8,20 @@ import select
 import sqlite3
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 from VisualsEventGenerator import (visualize_cores, visualize_distributions,visualize_xmax, visualize_xmaxfits)
 
-sys.path.append("./4-DC3EventGenerator/pulse_emulator/")
-import AntennaInterpolator as emulator_AntennaInterpolator # Arsène’s emulator to interpolate the traces at given positions
 # What to do with an output database that already exists (issue #51), shared by the scripts that write one
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
 import OutputDatabase
 import Hexagon
+
+# Arsène's pulse emulator, in pulse_emulator/ next to this script, found wherever the script is run from
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.append(str(SCRIPT_DIR / "pulse_emulator"))
+import AntennaInterpolator as emulator_AntennaInterpolator # Arsène’s emulator to interpolate the traces at given positions
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -316,9 +320,10 @@ def main():
     
     dry_run = sec.getboolean("dry_run", fallback=False)
     EventSeed = sec.getint("EventSeed", fallback=np.random.random())
-    path_python_emulator = resolve_ini_path(
-        config_file, sec.get("path_pulse_emulator", fallback="/sps/grand/cprevotat/.conda/test_arsene/bin/python3.11")
-    )
+    # Arsène's pulse emulator (pulse_emulator/README.md), off unless asked for. It runs in the Python of the environment it is
+    # installed in (torch, scikit-learn 1.3): by default the one running this script, otherwise give its full path.
+    use_pulse_emulator = sec.getboolean("use_pulse_emulator", fallback=False)
+    pulse_emulator_python = sec.get("pulse_emulator_python", fallback=sys.executable)
 
     np.random.seed(EventSeed)
 
@@ -339,6 +344,7 @@ def main():
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
+    print(f"Pulse Emulator:  {'on, run with ' + pulse_emulator_python if use_pulse_emulator else 'off'}")
     print("#########################################################")
 
     if not os.path.isfile(showers_db):
@@ -507,9 +513,13 @@ def main():
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
                 trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
 
-                path_emulator = "4-DC3EventGenerator/pulse_emulator/scripts/" # should go in the ini file maybe ?
-                emulated_traces = emulator_AntennaInterpolator.AntennaInterpolator(path_emulator, np.radians(zenith), np.radians(azimuth), E_em_GeV, xmax_try, ant_pos, path_python_emulator, voltage = True, ADC = True) # setting voltage = False : traces become E field (and ADC becomes useless)
-                triggering_dus = select_DUs_emulated_traces(emulated_traces, ant_ids)
+                if use_pulse_emulator:
+                    # setting voltage = False : traces become E field (and ADC becomes useless)
+                    emulated_traces = emulator_AntennaInterpolator.AntennaInterpolator(
+                        SCRIPT_DIR / "pulse_emulator" / "scripts", np.radians(zenith), np.radians(azimuth), E_em_GeV,
+                        xmax_try, ant_pos, pulse_emulator_python, voltage=True, ADC=True)
+                    # Not used yet: the trigger below still comes from the cone
+                    triggering_dus = select_DUs_emulated_traces(emulated_traces, ant_ids)
                 
                 hit = len(trig_try) >= min_trigger
                 tested_cores.append((core_try, hit))

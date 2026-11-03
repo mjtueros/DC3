@@ -2,9 +2,7 @@ import os
 import numpy as np
 import subprocess
 import json
-import matplotlib.pyplot as plt
-
-from pathlib import Path
+import tempfile
 
 
 
@@ -14,7 +12,7 @@ def AntennaInterpolator(MainPath, zenith, azimuth, E_em, XmaxPos, AntennaPositio
     """
     Assume XmaxPos and AntennaPositinos are given with z = 0 at site
     Parameters:
-    MainPath: Path to the folder containing this code (from DC3 or from where this code is run)
+    MainPath: folder of RunPulseEmulator.py (pulse_emulator/scripts)
     zenith : zenith angle in rad
     azimuth : azimuth angle in rad
     E_em : electromagnetic energy of the shower in GeV
@@ -36,60 +34,33 @@ def AntennaInterpolator(MainPath, zenith, azimuth, E_em, XmaxPos, AntennaPositio
     interpolate the signal at given antenna positions
     """
 
-    path_to_parameters = os.path.join(MainPath, 'parameters.json')
-    with open(path_to_parameters, "w") as f:
-        inputs = {
-            "zenith": zenith,
-            "azimuth": azimuth,
-            "energy_em": E_em,
-            "xmax_pos": XmaxPos.tolist(),
-            "AntennaPositions": AntennaPositions.tolist(),
-            "voltage": voltage,
-            "ADC": ADC
-        }
-        json.dump(inputs, f)
+    inputs = {
+        "zenith": zenith,
+        "azimuth": azimuth,
+        "energy_em": E_em,
+        "xmax_pos": XmaxPos.tolist(),
+        "AntennaPositions": AntennaPositions.tolist(),
+        "voltage": voltage,
+        "ADC": ADC
+    }
 
-    result = subprocess.run(
-    [str(PathToPython), PathToRun],
-    cwd=MainPath,
-    capture_output=True,
-    text=True
-    )
+    # A folder of its own for every call, so that runs at the same time do not read each other's files
+    with tempfile.TemporaryDirectory(prefix="pulse_emulator_") as tmp:
+        path_to_parameters = os.path.join(tmp, 'parameters.json')
+        path_to_traces = os.path.join(tmp, 'generated_trace.npy')
+        with open(path_to_parameters, "w") as f:
+            json.dump(inputs, f)
 
-    ### load the traces 
-    GeneratedTraces = np.load(os.path.join(MainPath, 'generated_trace.npy')) # shape is Nants, 3, Nsamples (here 1)
+        result = subprocess.run(
+            [str(PathToPython), PathToRun, path_to_parameters, path_to_traces],
+            cwd=MainPath,
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"{PathToRun} failed (exit status {result.returncode}):\n{result.stderr}")
+
+        ### load the traces
+        GeneratedTraces = np.load(path_to_traces) # shape is Nants, 3, Nsamples
 
     return GeneratedTraces
-
-
-
-if __name__ == "__main__":
-    # Example usage
-    zenith = 1.2868
-    azimuth = 4.6563
-    E_prim = 10**9.41
-    XmaxPos = np.array([-3278, -36353, 12084])
-    voltage = True
-    ADC = True
-
-
-
-    antenna_pos_path = "./../GRAND_GP65_RTK_positions.csv"
-    AntennaPositions = np.genfromtxt(antenna_pos_path, delimiter=",")[1:, [1, 8, 9, 10]]
-
-    AntennaPositions = np.loadtxt("/sps/grand/cprevotat/grand/efficiency/gp65_rtksort_NorthWest.txt")
-
-
-
-    selected_dus = AntennaInterpolator("./",
-    "protons",
-    zenith= [zenith],
-    azimuth= [azimuth],
-    E_prim= [E_prim], # it should be E_em here :)
-    XmaxPos= XmaxPos, # same for Xmax, reference is sea level
-    AntennaPositions=AntennaPositions, # the altitude of the antennas should be around 1264 ; maybe I should transpose antenna positions
-    PathToPython="/sps/grand/cprevotat/.conda/test_arsene/bin/python3.11",
-    voltage=voltage,
-    ADC=ADC
-    )
-

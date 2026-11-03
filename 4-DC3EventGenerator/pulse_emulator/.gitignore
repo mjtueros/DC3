@@ -27,3 +27,7 @@ scripts/reconstruction/jobs/*
 
 # machine-specific paths (template: local_paths_example.py)
 scripts/local_paths.py
+
+# RFchain_computation, cloned here (see the README), and the logs of test runs
+DU_response_computation/
+scripts/logs/

@@ -21,10 +21,19 @@ pip install -e ".[all]"     # + optuna (train), PWF_reconstruction (pwf), not ne
 
 ### External code
 
-In DU_response_computation :
-| `apply_rfchain` (+ `make_input`, `noise`) from [RFchain_computation](https://github.com/arsenefer/RFchain_computation) | E-field → voltage conversion, galactic-noise generation | not pip-installable: clone it and add it to `PYTHONPATH` | or just clone it IN the pulse/emulator folder
+`apply_rfchain` (+ `make_input`, `noise`) from [RFchain_computation](https://github.com/arsenefer/RFchain_computation)
+does the E-field → voltage conversion and the galactic-noise generation. It is not pip-installable: clone it into
+this folder (`4-DC3EventGenerator/pulse_emulator`), under the name `RunPulseEmulator.py` looks for:
 
-Without it `import pulse_emulator` still works and the E-field emulation runs. Calling a
+```bash
+git clone https://github.com/arsenefer/RFchain_computation DU_response_computation
+```
+
+Its data (the S-parameters and the Leff maps) are not in that repository: the RF-chain parameter JSON
+(`RF_PARAMS_CONFIG_FILE`, below) gives where they are (`source_path`).
+
+Without RFchain_computation, the package still imports (`import pulse_emulator`) and its E-field emulation runs;
+`RunPulseEmulator.py` does not, since it imports `make_input` from it. Calling a
 function that needs a missing package raises an `ImportError` explaining what to install.
 
 
@@ -56,7 +65,12 @@ this code is called from the DC3 environment and execute RunPulseEmulator.py wit
 ## Configuring paths
 
 Data and model locations are not hard-coded in the scripts. They are read from a
-machine-specific `scripts/local_paths.py`, which is gitignored. 
+machine-specific `scripts/local_paths.py`, which is gitignored. Create it from the template, in this folder too, and
+fill in the values (without it, `RunPulseEmulator.py` stops at its imports):
+
+```bash
+cp scripts/local_paths_example.py scripts/local_paths.py
+```
 
 It defines `BASE_MODEL_PATH`, `BASE_DATA_PATH`, `BASE_ROOT`, `RF_PARAMS_CONFIG_FILE` and
 `LFMAP_DIR`. `RF_PARAMS_CONFIG_FILE` points to an RF-chain parameter JSON; start from
@@ -64,6 +78,12 @@ It defines `BASE_MODEL_PATH`, `BASE_DATA_PATH`, `BASE_ROOT`, `RF_PARAMS_CONFIG_F
 
 For DC3 we only need BASE_MODEL_PATH and RF_PARAMS_CONFIG_FILE
 
+## In the DC3 EventGenerator
+
+The EventGenerator runs the emulator only with `use_pulse_emulator = True` in the `[EventGenerator]` section of its
+ini file. For every tested core, `AntennaInterpolator.py` then runs `scripts/RunPulseEmulator.py` in the Python given
+by `pulse_emulator_python` (the full path of the Python of the environment the emulator is installed in), by default
+the one running the EventGenerator.
 
 ## License
 
