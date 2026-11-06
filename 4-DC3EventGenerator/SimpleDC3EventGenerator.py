@@ -104,7 +104,6 @@ EVENT_TABLES_SQL = """
             Core_N REAL,
             Core_W REAL,
             Core_U REAL,
-            Xmax_g_cm2 REAL,
             Xmax_N REAL,
             Xmax_W REAL,
             Xmax_U REAL,
@@ -295,7 +294,7 @@ def main():
 
     dry_run = sec.getboolean("dry_run", fallback=False)
     EventSeed = sec.getint("EventSeed", fallback=np.random.random())
-    np.random.seed(EventSeed)
+    np.random.seed(int(EventSeed))
 
     print("#########################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")

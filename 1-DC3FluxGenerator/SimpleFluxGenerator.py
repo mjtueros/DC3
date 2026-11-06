@@ -127,7 +127,7 @@ if natural_geometry not in GEOMETRIES:
 FluxSeed = sec.getint("FluxSeed", fallback=random.random())
 # Initializing both random number generators, as they are independent.
 random.seed(FluxSeed)
-np.random.seed(FluxSeed)
+np.random.seed(int(FluxSeed))
 
 print("################################################################################")
 print("Flux Generator Configuration")
