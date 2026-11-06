@@ -171,10 +171,10 @@ def main():
 
             # Read parameters directly (Assuming GRAND coords already)
             primary = str(row["PrimaryType"])
-            zenith = float(row["Zenith"])
-            azimuth = float(row["Azimuth"])
+            zenith = float(row["Zenith_Deg"])
+            azimuth = float(row["Azimuth_Deg"])
             energy_GeV = float(row["Energy_GeV"])
-            original_weight = float(row["Weight"])
+            original_weight = float(row["EventWeight"])
             xmax_g_cm2 = float(row["Xmax_g_cm2"])
             core_N = float(row["Core_N"])
             core_W = float(row["Core_W"])
