@@ -6,6 +6,13 @@ __pycache__/
 /ZHAireS-Inputs/
 /CoREASInputs/
 
+# Inputs generated for CORSIKA, which hold the absolute paths of the machine where they were made
+/DebugLibraryCoREAS/DEBUGCoREASInputs/
+
+# What the hexagon-rings example writes (DebugLibraryDummy/HexRings/README.md)
+/DebugLibraryDummy/HexRings/*.sqlite
+/DebugLibraryDummy/HexRings/Plots*/
+
 .vscode/
 pyrefly.toml
 *.pyc
