@@ -19,6 +19,10 @@ import argparse
 import sqlite3
 import glob
 
+# What to do with an output database that already exists (issue #51), shared by the scripts that write one
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
+import OutputDatabase
+
 # ==============================================================================
 # ENVIRONMENT & IMPORTS
 # ==============================================================================
@@ -81,27 +85,27 @@ def main():
         sys.exit(1)
 
     # 1. INIT DATABASE
+    # An existing output database is only changed if you say so (issue #51): overwrite it, append the showers
+    # that are not in it yet (by ShowerName), or exit
+    existing = set()
     if os.path.exists(args.output_db):
-        print(f"[WARNING] Output file '{args.output_db}' already exists. Appending to it.")
-        
-    conn = sqlite3.connect(args.output_db)
-    cursor = conn.cursor()
-
-    # Create table matching SimpleFluxGenerator.py schema
-    # Note: ShowerNumber is set to AUTOINCREMENT to automatically assign sequential IDs
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Showers (
-            ShowerNumber INTEGER PRIMARY KEY AUTOINCREMENT,
-            ShowerName TEXT,
-            RandomSeed TEXT,
-            ShowerWeight REAL,
-            PrimaryType TEXT,
-            Energy_GeV REAL,
-            Zenith_Deg REAL,
-            Azimuth_Deg REAL,
-            Model TEXT
-        )
-    """)
+        cannot_append = None
+        try:
+            conn = OutputDatabase.open_read_only(args.output_db)
+            if "ShowerName" not in [col[1] for col in conn.execute("PRAGMA table_info(Showers)")]:
+                cannot_append = "it has no Showers table with a ShowerName column"
+            else:
+                existing = {name for (name,) in conn.execute("SELECT ShowerName FROM Showers")}
+            conn.close()
+        except sqlite3.DatabaseError:
+            cannot_append = "it is not an SQLite database"
+        if OutputDatabase.ask_about_existing_output(args.output_db, cannot_append) == "overwrite":
+            overwrite = True
+            existing = set()
+        else:
+            overwrite = False
+    else:
+        overwrite = False
 
     # 2. LOCATE FILES
     print(f"Scanning directory: {args.input_dir}...")
@@ -121,6 +125,7 @@ def main():
     showers_data = []
     n_success = 0
     n_errors = 0
+    n_already = 0
 
     for idx, filepath in enumerate(sry_files, 1):
         try:
@@ -141,10 +146,15 @@ def main():
             # Event weight was 1.0 by default in SimpleFluxGenerator
             weight = 1.0
 
+            n_success += 1
+            # Appending: the showers already in the database are kept as they are
+            if task_name in existing:
+                n_already += 1
+                continue
+
             showers_data.append((
                 task_name, seed, weight, primary, energy_gev, zenith, azimuth, model
             ))
-            n_success += 1
             
         except Exception as e:
             print(f"  [ERROR] Failed to read {os.path.basename(filepath)}: {e}")
@@ -155,6 +165,28 @@ def main():
             print(f"  Processed {idx}/{len(sry_files)} files...")
 
     # 4. INSERT INTO DATABASE
+    # You chose to overwrite it: the old database is deleted only now that the library has been read
+    if overwrite:
+        OutputDatabase.delete_old_output(args.output_db)
+    conn = sqlite3.connect(args.output_db)
+    cursor = conn.cursor()
+
+    # Create table matching SimpleFluxGenerator.py schema
+    # Note: ShowerNumber is set to AUTOINCREMENT to automatically assign sequential IDs
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Showers (
+            ShowerNumber INTEGER PRIMARY KEY AUTOINCREMENT,
+            ShowerName TEXT,
+            RandomSeed TEXT,
+            ShowerWeight REAL,
+            PrimaryType TEXT,
+            Energy_GeV REAL,
+            Zenith_Deg REAL,
+            Azimuth_Deg REAL,
+            Model TEXT
+        )
+    """)
+
     print("\nInserting data into SQLite database...")
     cursor.executemany("""
         INSERT INTO Showers (
@@ -172,6 +204,8 @@ def main():
     print("=" * 60)
     print(f"Total Files Found : {len(sry_files)}")
     print(f"Successfully Read : {n_success}")
+    print(f"Already in DB     : {n_already}  (kept as they were)")
+    print(f"Added to DB       : {len(showers_data)}")
     print(f"Failed to Read    : {n_errors}")
     print(f"Database Saved To : {args.output_db}")
     print("=" * 60)

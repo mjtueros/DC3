@@ -19,6 +19,14 @@ python3 3-DC3XmaxGetter/SimpleXmaxGetter.py Example_dc3_config.ini
 
 All configurable parameters (input SQLite database, output SQLite database, detector altitude, and plot display) are specified and explained under the `[XmaxGetter]` section of the `.ini` file.
 
+If `OutputFile` already exists, the XmaxGetter asks before computing anything:
+
+- `o` overwrites it. The old file is deleted once the input has been read.
+- `a` appends to it the showers that are not in it yet (by `ShowerName`); the showers already there are kept as they are. It is only offered when the database was written with the same `InputFile`, `LibraryType`, `LibraryDir` (ZHAireS) and `detector_alt_km` (Dummy), which the XmaxGetter records in a `RunSettings` table (`Name`, `Value`). A flux database keeps its `ShowerNumber`s, so new showers whose number is already taken come from another flux database: the run then stops before writing anything.
+- `e` exits without touching it.
+
+The answer is read from the standard input, so it can also be piped in; with nothing to read (e.g. a batch job without input) the XmaxGetter exits.
+
 ---
 
 ## Core Physics Concepts

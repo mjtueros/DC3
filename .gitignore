@@ -4,9 +4,18 @@ __pycache__/
 # Ignore a directory located at the root of the project:
 /AiresInputs/
 /ZHAireS-Inputs/
+/CoREASInputs/
+
+# Inputs generated for CORSIKA, which hold the absolute paths of the machine where they were made
+/DebugLibraryCoREAS/DEBUGCoREASInputs/
+
+# What the hexagon-rings example writes (DebugLibraryDummy/HexRings/README.md)
+/DebugLibraryDummy/HexRings/*.sqlite
+/DebugLibraryDummy/HexRings/Plots*/
 
 .vscode/
 pyrefly.toml
+<<<<<<< HEAD
 
 # Ignore the local environment directories
 env_311/
@@ -20,3 +29,7 @@ env_312/
 
 # Ignore modified database
 *.sqlite
+=======
+*.pyc
+Issue #* Code Review.html
+>>>>>>> develop
