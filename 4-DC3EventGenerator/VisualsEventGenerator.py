@@ -144,7 +144,6 @@ def visualize_distributions(
     out_az,
     in_egy,
     out_egy,
-    in_xmax,
     out_xmax,
     out_wgt,
 ):
@@ -159,7 +158,6 @@ def visualize_distributions(
         out_az: Output azimuth angles (degrees).
         in_egy: Input energies (EeV).
         out_egy: Output energies (EeV).
-        in_xmax: Input Xmax values (g/cm²).
         out_xmax: Output Xmax values (g/cm²).
         out_wgt: Output weights for weighted histograms.
 
@@ -281,16 +279,8 @@ def visualize_distributions(
         f"Distributions (Cone: {cone_angle}° | Min Trigger: {min_trigger} ants)"
     )
     n, bins, patches = ax.hist(
-        in_xmax,
-        bins=20,
-        histtype="step",
-        color="black",
-        linewidth=2,
-        label="Input (Unweighted)",
-    )
-    ax.hist(
         out_xmax,
-        bins=bins,
+        bins=20,
         histtype="step",
         color="red",
         linewidth=2,
@@ -340,7 +330,7 @@ def visualize_xmax(
     out_primary = np.array(out_primary)
 
     # Define energy bins
-    binsE = np.arange(min(np.log10(out_egy)), max(np.log10(out_egy)) + 0.2, 1)
+    binsE = np.arange(min(np.log10(out_egy)), max(np.log10(out_egy)) + 0.2, 0.5)
     E_hist = np.histogram(np.log10(out_egy), bins=binsE)
     log10E = np.log10(out_egy)
     E_mid = np.zeros(len(E_hist[1]) - 1)
@@ -481,7 +471,7 @@ def visualize_xmaxfits(
     out_primary = np.array(out_primary)
 
     # Define energy bins
-    binsE = np.arange(min(np.log10(out_egy)), max(np.log10(out_egy)) + 0.2, 1)
+    binsE = np.arange(min(np.log10(out_egy)), max(np.log10(out_egy)) + 0.2, 0.5)
     E_hist = np.histogram(np.log10(out_egy), bins=binsE)
     log10E = np.log10(out_egy)
     E_mid = np.zeros(len(E_hist[1]) - 1)
@@ -515,6 +505,7 @@ def visualize_xmaxfits(
 
         # =========================================================================
         # PROTON
+        print(f"\nProton, {E_hist[1][i]:.2f}<log10(energy)<{E_hist[1][i+1]:.2f}")
 
         # Get histogram data for protons in this bin
         condition_p = (
@@ -532,9 +523,10 @@ def visualize_xmaxfits(
         # Normalize histogram to PDF
         total_area = np.sum(hist_p) * bin_width
         hist_p_pdf = hist_p / total_area
-
+ 
         # Fit Generalized Gumbel
-        popt, pcov = curve_fit(GenGumbelDist, bin_centers, hist_p_pdf, p0=[100, 700, 1])
+        bounds = ([1, 1, 0], [1e4, 1e4, 5])
+        popt, pcov = curve_fit(GenGumbelDist, bin_centers, hist_p_pdf, p0=[100, 700, 1], bounds=bounds)
         sigma_fit, mu_fit, lam_fit = popt
         sigma_mu, sigma_sigma, sigma_lam = np.sqrt(np.diag(pcov))
 
@@ -561,6 +553,7 @@ def visualize_xmaxfits(
 
         # =========================================================================
         # IRON
+        print(f"\nIron, {E_hist[1][i]:.2f}<log10(energy)<{E_hist[1][i+1]:.2f}")
 
         # Get histogram data for iron in this bin
         condition_Fe = (
@@ -582,7 +575,7 @@ def visualize_xmaxfits(
 
         # Fit Generalized Gumbel
         popt, pcov = curve_fit(
-            GenGumbelDist, bin_centers, hist_Fe_pdf, p0=[100, 700, 1]
+            GenGumbelDist, bin_centers, hist_Fe_pdf, p0=[100, 700, 1], bounds=bounds
         )
         sigma_fit, mu_fit, lam_fit = popt
         mu_fit = (
@@ -647,7 +640,7 @@ def visualize_xmaxfits(
         ls="",
         marker="o",
         capsize=4,
-        label="Proton (DC2 ZHAireS-AN)",
+        label="Proton",
     )
     plt.errorbar(
         E_mid_linear,
@@ -658,7 +651,7 @@ def visualize_xmaxfits(
         ls="",
         marker="o",
         capsize=4,
-        label="Iron (DC2 ZHAireS-AN)",
+        label="Iron",
     )
     plt.plot(
         10 ** line_p_s[:, 0] * eV_to_GeV,
@@ -722,7 +715,7 @@ def visualize_xmaxfits(
         ls="",
         marker="o",
         capsize=4,
-        label="Proton (DC2 ZHAireS-AN)",
+        label="Proton",
     )
     plt.errorbar(
         E_mid_linear,
@@ -733,7 +726,7 @@ def visualize_xmaxfits(
         ls="",
         marker="o",
         capsize=4,
-        label="Iron (DC2 ZHAireS-AN)",
+        label="Iron",
     )
     plt.plot(
         10 ** sig_p_s[:, 0] * eV_to_GeV,
