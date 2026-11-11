@@ -32,3 +32,8 @@ Since you dont need to run any showers, you can generate everything in some minu
 
 `HexRings/` is an example of a library made of rings of the hexagon, combined into one and mapped with the trigger-probability tools of stage 4 (see its README).
 
+
+If you want to have the plots done, you can use
+
+python ../1-DC3FluxGenerator/PlotFluxFromDatabase.py ExampleFlux.sqlite ExamplePlots
+
