@@ -69,7 +69,7 @@ if natural_geometry not in GEOMETRIES:
     sys.exit(1)
 
 # Setting seed for random number generator
-FluxSeed = sec.getint("FluxSeed", fallback=int(random.random()*1e6)
+FluxSeed = sec.getint("FluxSeed", fallback=int(random.random()*1e6))
 # Initializing both random number generators, as they are independent.
 random.seed(FluxSeed)
 np.random.seed(FluxSeed)
@@ -124,7 +124,10 @@ def generate_random_zenith(num_samples, theta_min_deg=0, theta_max_deg=80):
     zenith_radians = np.arccos(10**(-x_samples))
     return np.degrees(zenith_radians)
 
-RandomZeniths = generate_random_zenith(Nsims, mintheta, maxtheta)
+#Generate the random zenith angle and round to 2 decimals, as ZHAireS sry file only keeps 2
+RandomZeniths = np.round(generate_random_zenith(Nsims, mintheta, maxtheta),decimals=2)
+
+
 
 if show_plots:
     plot_flux_distributions(zenith_deg=RandomZeniths, show=True)
@@ -132,7 +135,8 @@ if show_plots:
 # ==============================================================================
 # Azimuth Section
 # ==============================================================================
-RandomAzimuths = np.random.uniform(low=minphi, high=maxphi, size=Nsims)
+#Generate the random azimuth angle and round to 2 decimals, as ZHAireS sry file only keeps 2
+RandomAzimuths = np.round(np.random.uniform(low=minphi, high=maxphi, size=Nsims),decimals=2)
 
 if show_plots:
     plot_flux_distributions(azimuth_deg=RandomAzimuths, show=True)
@@ -148,6 +152,10 @@ print("max Energy (GeV):" + str(Emax) + " -> log10 (Emax) " + str(LogEmax))
 
 RandomLogEnergies = np.random.uniform(low=LogEmin, high=LogEmax, size=Nsims)
 RandomEnergies = np.power(10, RandomLogEnergies)
+
+#Truncate to 10TeV (5 decimals in EeV, as this is what ZHAireS input generator does)
+RandomEnergies=np.round(RandomEnergies/10000.0,decimals=0)*10000
+
 
 if show_plots:
     plot_flux_distributions(energy_gev=RandomEnergies, show=True)
@@ -202,7 +210,7 @@ for i in range(0, Nsims):
     Zenith = float(RandomZeniths[i])
     Azimuth = float(RandomAzimuths[i])
     
-    RandomSeed_str = f"{RandomSeed:.10f}"
+    RandomSeed_str = f"{RandomSeed:.9f}"
     Energystring = '{0:.3}'.format(Energy/1e9)
     Zenithstring = '{0:.3}'.format(Zenith)
     Azimuthstring = '{0:.4}'.format(Azimuth)

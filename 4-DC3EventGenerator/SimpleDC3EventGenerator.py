@@ -103,6 +103,7 @@ EVENT_TABLES_SQL = """
             Xmax_g_cm2 REAL,
             XmaxAltitude_km REAL,
             XmaxDistance_km REAL,
+            EmFraction REAL,
             Core_N REAL,
             Core_W REAL,
             Core_U REAL,
@@ -309,7 +310,9 @@ def main():
     print(f"Loading antennas from {antennas_csv}...")
     ant_ids, ant_pos_list = [], []
     with open(antennas_csv, mode="r") as f:
-        reader = csv.DictReader(f)
+        #the filter(lambda row...) is magic to skip the comments in the file header
+        reader = csv.DictReader(filter(lambda row: row[0]!='#', f))
+              
         for row in reader:
             ant_ids.append(row["ID"])
             ant_pos_list.append(
@@ -463,11 +466,11 @@ def main():
                 
                 cursor.execute("""
                     INSERT INTO Events (EventName, ShowerName, ShowerWeight, PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model, RandomSeed, Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km, 
-                                        Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, EventWeight, Tries , Triggers, NaturalRate_per_yr)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        EmFraction, Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, EventWeight, Tries , Triggers, NaturalRate_per_yr)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     unique_event_name, row['ShowerName'], row['ShowerWeight'], row['PrimaryType'], energy_GeV, zenith, azimuth, row['Model'],
-                    row['RandomSeed'], row['Xmax_g_cm2'], row['XmaxAltitude_km'], row['XmaxDistance_km'], core_pos[0], core_pos[1], core_pos[2],
+                    row['RandomSeed'], row['Xmax_g_cm2'], row['XmaxAltitude_km'], row['XmaxDistance_km'],row['EmFraction'], core_pos[0], core_pos[1], core_pos[2],
                     xmax_pos[0], xmax_pos[1], xmax_pos[2], new_weight, cores_per_event,n_triggers, natural_rate
                 ))
                 event_id = cursor.lastrowid
