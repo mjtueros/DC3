@@ -2,10 +2,10 @@
 # ZHAireS Input File generated from SQLite Trigger Database
 # ShowerName        : Xi_Sib_Proton_1.01_72.7_162.0_149
 # EventName         : Xi_Sib_Proton_1.01_72.7_162.0_149_r0
-# EventWeight       : 3.333333e-01
-# CorePosition_NWU  : -2112.94 755.40 0.00
-# XmaxPosition_NWU  : -28365.50 9145.90 9973.25
-# XmaxDistance_m    : 29309.79
+# EventWeight       : 2.060000e-01
+# CorePosition_NWU  : 2763.17 135.85 0.00
+# XmaxPosition_NWU  : -27715.27 10037.14 9973.25
+# XmaxDistance_km   : 33.56
 ################################################################################
 
 ##############################################################################
@@ -22,10 +22,9 @@ RandomSeed 0.291048871
 ####################################################################################
 # Antenna List created with CreateAntennaListInp v0.1                              #
 ####################################################################################
-AddAntenna 18     2596.92    -1059.12       11.40
-AddAntenna 26     3090.58     -765.25        7.77
-AddAntenna 34     3099.06    -1343.18        3.48
-AddAntenna 50     3594.15    -1048.67        0.00
+AddAntenna 27    -1790.91      430.52       12.43
+AddAntenna 39    -1295.46      144.46        2.21
+AddAntenna 51    -1291.53      725.31        8.84
 ####################################################################################
 FresnelTime On
 ZHAireS On
@@ -33,13 +32,21 @@ ZHAireS On
 # CreateAntennaListInp Finished                                                    #
 ####################################################################################
 
+####################################################################################
+# Expected amplitude at each antenna, from the EventGenerator (its mock model,     #
+# arbitrary units), for reference: AntennaID Amplitude                             #
+# 27 9.880049e-04
+# 39 9.555938e-04
+# 51 9.656277e-04
+####################################################################################
+
 ######################################################################################
 # Antenna TimeWindow created with CreateTimeWindowInp v0                             #
-# Xmax to Antenna Distance:29.3097878 km
+# Xmax to Antenna Distance:33.5624300 km
 ######################################################################################
 AntennaTimeMin -250.00 ns
 AntennaTimeMax 750.00 ns
-ExpectedXmaxDist 29309.79 m
+ExpectedXmaxDist 33562.43 m
 ######################################################################################
 
 #Skeleton ##############################################################
