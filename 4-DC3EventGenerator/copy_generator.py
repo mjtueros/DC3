@@ -265,7 +265,7 @@ def append_problem(db_path, run_settings, showers_db):
     try:
         conn_in = sqlite3.connect(Path(showers_db).resolve().as_uri() + "?mode=ro", uri=True)
         try:
-            input_names = {name for (name,) in conn_in.execute("SELECT EventName FROM Events")}
+            input_names = {name for (name,) in conn_in.execute("SELECT EventName FROM Showers")}
         finally:
             conn_in.close()
     except sqlite3.DatabaseError as exc:
@@ -409,7 +409,7 @@ def main():
     
     dry_run = sec.getboolean("dry_run", fallback=False)
     EventSeed = sec.getint("EventSeed", fallback=np.random.random())
-    np.random.seed(EventSeed)
+    np.random.seed(int(EventSeed))
 
     print("#########################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")
@@ -528,7 +528,7 @@ def main():
     conn_in = sqlite3.connect(showers_db)
     conn_in.row_factory = sqlite3.Row
     cursor_in = conn_in.cursor()
-    cursor_in.execute("SELECT * FROM Events")
+    cursor_in.execute("SELECT * FROM Showers")
     
     for i, row in enumerate(cursor_in.fetchall()):
         print(f"PROCESSING OF EVENT {i}")
@@ -545,8 +545,8 @@ def main():
         # Read parameters directly (Assuming GRAND coords already)
         zenith = float(row['Zenith_Deg'])
         azimuth = float(row['Azimuth_Deg'])
-        energy_GeV = float(row['Energy_EeV']) * 1e9 
-        original_weight = float(row['EventWeight'])
+        energy_GeV = float(row['Energy_GeV'])
+        original_weight = float(row['ShowerWeight'])
         primary = str(row["PrimaryType"])
         # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
         natural_weight = row['NaturalWeight'] if 'NaturalWeight' in row.keys() else None
@@ -563,7 +563,7 @@ def main():
 
         # EVENT REUSE LOOP
         for reuse_idx in range(reuse):
-            unique_event_name = f"{row['EventName']}_r{reuse_idx}"
+            unique_event_name = f"{row['ShowerName']}_r{reuse_idx}"
             # Appending: the events already in the database are kept, not simulated again
             if unique_event_name in existing_events:
                 already_count += 1
