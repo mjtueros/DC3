@@ -1,4 +1,22 @@
+####
+# imports sur dev-next-eventviewer
+####
+# import sqlite3
+# from pathlib import Path
 
+# import numpy as np
+# import pandas as pd
+# import math
+
+# from grand import GRANDCS, Geodetic, topography
+# from grand.geo.coordinates import CartesianRepresentation
+
+# import matplotlib.pyplot as plt
+# from matplotlib.lines import Line2D
+
+####
+# imports sur dev_noC
+####
 import sqlite3
 from pathlib import Path
 
@@ -6,8 +24,11 @@ import numpy as np
 import pandas as pd
 import math
 
-from grand import GRANDCS, Geodetic, topography
-from grand.geo.coordinates import CartesianRepresentation
+
+from grand.geo.coordinates import ECEF, Geodetic, LTP, GRANDCS, CartesianRepresentation
+from grand.geo.topography import Topography
+
+topography = Topography()
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
@@ -51,13 +72,20 @@ def is_ant_occluded(ant_pos, xmax):
     checks if the direct path (straight line) from X_max to the antenna is occulted by topography
 
     Returns :
-      True  : if the antenna is occulted;
-      False : if the antenna is visible from X_max;
-      None  : computations failed (mainly due to the usage of topography.distance)  # should not happen with adequate databases 
+    True  : if the antenna is occulted;
+    False : if the antenna is visible from X_max;
+    None  : computations failed (mainly due to the usage of topography.distance)  # should not happen with adequate databases 
     """
 
-    LIMIT = 70000.0
-    MAX_ALTITUDE = 5000.0
+    MARGIN = 500.0
+
+    X_LIM_MIN = -217_000 + MARGIN
+    X_LIM_MAX =  113_000- MARGIN
+
+    Y_LIM_MIN =  -86_000 + MARGIN
+    Y_LIM_MAX =  161_000 - MARGIN
+
+    MAX_ALTITUDE = 2500.0
     EPS = 1e-9
 
     # conversion to numpy, could be removed in the current file because we already provide ant_pos and xmax in the correct format
@@ -83,8 +111,8 @@ def is_ant_occluded(ant_pos, xmax):
     # Intersection between the segment and the 3D box (slab method)
     t_min = 0.0
     t_max = 1.0
-    box_min = np.array([-LIMIT, -LIMIT, -np.inf])
-    box_max = np.array([LIMIT, LIMIT, MAX_ALTITUDE])
+    box_min = np.array([X_LIM_MIN, Y_LIM_MIN, -np.inf])
+    box_max = np.array([X_LIM_MAX, Y_LIM_MAX, MAX_ALTITUDE])
     for i in range(3):
         if abs(direction[i]) < EPS:
             if xmax[i] < box_min[i] or xmax[i] > box_max[i]:
@@ -119,7 +147,10 @@ def is_ant_occluded(ant_pos, xmax):
         return None
 
     remaining_length = (1.0 - t_start) * segment_length
-    distance = abs(float(distance))
+    distance = abs(float(np.asarray(distance).item()))
+
+    # difference = remaining_length - distance
+    # print(f"distance antenne - impact : {difference}")
 
     # The antenna is visible if the distance found matches the actual distance between xmax and the antenna
     # Note that the distance found should never be much greater than the actual distance, since the antennas
@@ -206,48 +237,197 @@ def is_shower_occluded(xmax, zenith, azimuth, ant_pos, cone_angle, min_trigger):
 
 
 
-def plot_3d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, plot_altitude=2500.0, map_limit=20000.0, max_altitude=3500.0, grid_size=150):
+# def plot_3d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, plot_altitude=2500.0, map_limit=20000.0, max_altitude=3500.0, grid_size=150):
+
+#     core = np.asarray(core, dtype=float)
+#     xmax = np.asarray(xmax, dtype=float)
+#     ant_pos = np.asarray(ant_pos, dtype=float)
+
+#     # "close point of the xmax - core axis" below 2500 altitude to have a pretty plot
+#     if not (plot_altitude < xmax[2]):
+#         xmax_plot = xmax
+
+#     # Intersection de la trajectoire Core -> Xmax avec z = 2500 m
+#     else :
+#         t = (plot_altitude - core[2]) / (xmax[2] - core[2])
+#         xmax_plot = core + t * (xmax - core)
+
+
+
+#     # init topography
+#     north = np.linspace(-map_limit, map_limit, grid_size)
+#     west = np.linspace(-map_limit, map_limit, grid_size)
+#     WEST, NORTH = np.meshgrid(west, north)
+#     terrain_geo = GRANDCS(x=NORTH.ravel(), y=WEST.ravel(), z=np.zeros(NORTH.size), location=origin)
+#     TERRAIN = np.asarray(topography.elevation(terrain_geo, "GEOID")).reshape(NORTH.shape)
+
+
+
+#     # plot
+
+#     fig = plt.figure(figsize=(13, 10))
+#     ax = fig.add_subplot(111, projection="3d")
+
+#     # Topography
+#     ax.plot_surface(WEST, NORTH, TERRAIN, cmap="terrain", alpha=0.85, linewidth=0, antialiased=True)
+
+#     # Antennas
+#     ax.scatter(ant_pos[:, 1], ant_pos[:, 0], ant_pos[:, 2], color="royalblue", s=25, label="Antennas", depthshade=False)
+
+
+#     #plot of the occulted antennas
+
+#     # Antennas inside the shower cone
+#     selected_indices, _ = select_cone(xmax=xmax, theta_deg=zenith_deg, phi_deg=azimuth_deg, ant_pos=ant_pos, cone_angle=cone_angle)
+
+#     occulted_indices = []
+
+#     for idx in selected_indices:
+#         if is_ant_occluded(ant_pos[idx], xmax) is True:
+#             occulted_indices.append(idx)
+
+#     print(f"Antennas in cone: {len(selected_indices)}")
+#     print(f"Occulted antennas: {len(occulted_indices)}")
+
+#     # Draw one trajectory for each occulted antenna
+#     for i, idx in enumerate(occulted_indices):
+#         antenna = ant_pos[idx]
+#         # Actual trajectory: true Xmax -> antenna
+#         direction = antenna - xmax
+#         # Clip the segment to the region z <= plot_altitude
+#         t_min = 0.0
+#         t_max = 1.0
+#         if abs(direction[2]) > 1e-9:
+#             t_limit = (plot_altitude - xmax[2]) / direction[2]
+#             if direction[2] > 0:
+#                 t_max = min(t_max, t_limit)
+#             else:
+#                 t_min = max(t_min, t_limit)
+#         if t_min > t_max or t_max < 0 or t_min > 1:
+#             continue
+#         t_min = max(0.0, t_min)
+#         t_max = min(1.0, t_max)
+#         start = xmax + t_min * direction
+#         end = xmax + t_max * direction
+
+#         ax.plot([start[1], end[1]], [start[0], end[0]], [start[2], end[2]], color="orangered", linewidth=2, alpha=0.9, label="Xmax → occulted antenna" if i == 0 else None)
+
+#     # Core 
+#     ax.scatter(core[1], core[0], core[2], color="black", marker="*", s=200, label="Core", depthshade=False)
+
+#     # Trajectory : Core -> Xmax at 2500 m
+#     ax.plot([core[1], xmax_plot[1]], [core[0], xmax_plot[0]], [core[2], xmax_plot[2]], color="black", linestyle="--", linewidth=2, label="Core -> Xmax")
+
+#     # "closer xmax"
+#     ax.scatter(xmax_plot[1], xmax_plot[0], xmax_plot[2], color="red", s=80, label="Xmax (2500 m)", depthshade=False)
+
+#     # axes
+
+#     ax.set_xlim(-map_limit, map_limit)
+#     ax.set_ylim(-map_limit, map_limit)
+#     ax.set_zlim(0, max_altitude)
+
+#     ax.set_xlabel("Ouest (m)")
+#     ax.set_ylabel("Nord (m)")
+#     ax.set_zlabel("Altitude (m)")
+
+#     ax.set_title("3D: topography, antennas, Core and Xmax")
+
+#     ax.legend(loc="upper right")
+#     ax.view_init(elev=25, azim=-60)
+
+#     plt.tight_layout()
+#     plt.show()
+
+
+def plot_3d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0,
+            plot_altitude=6000.0, max_altitude=6000.0, grid_size=300):
 
     core = np.asarray(core, dtype=float)
     xmax = np.asarray(xmax, dtype=float)
     ant_pos = np.asarray(ant_pos, dtype=float)
 
-    # "close point of the xmax - core axis" below 2500 altitude to have a pretty plot
-    if not (plot_altitude < xmax[2]):
-        xmax_plot = xmax
+    # --------------------------------------------------
+    # Map boundaries (same as is_ant_occluded)
+    # --------------------------------------------------
 
-    # Intersection de la trajectoire Core -> Xmax avec z = 2500 m
-    else :
+    MARGIN = 500.0
+
+    X_LIM_MIN = -217_000 + MARGIN
+    X_LIM_MAX =  113_000- MARGIN
+
+    Y_LIM_MIN =  -86_000 + MARGIN
+    Y_LIM_MAX =  161_000 - MARGIN
+
+
+    # --------------------------------------------------
+    # Xmax plotting position
+    # --------------------------------------------------
+
+    if xmax[2] <= plot_altitude:
+        xmax_plot = xmax.copy()
+    else:
         t = (plot_altitude - core[2]) / (xmax[2] - core[2])
         xmax_plot = core + t * (xmax - core)
 
+    # --------------------------------------------------
+    # Topography
+    # --------------------------------------------------
 
+    north = np.linspace(X_LIM_MIN, X_LIM_MAX, grid_size)
+    west = np.linspace(Y_LIM_MIN, Y_LIM_MAX, grid_size)
 
-    # init topography
-    north = np.linspace(-map_limit, map_limit, grid_size)
-    west = np.linspace(-map_limit, map_limit, grid_size)
     WEST, NORTH = np.meshgrid(west, north)
-    terrain_geo = GRANDCS(x=NORTH.ravel(), y=WEST.ravel(), z=np.zeros(NORTH.size), location=origin)
-    TERRAIN = np.asarray(topography.elevation(terrain_geo, "GEOID")).reshape(NORTH.shape)
 
+    terrain_geo = GRANDCS(
+        x=NORTH.ravel(),
+        y=WEST.ravel(),
+        z=np.zeros(NORTH.size),
+        location=origin
+    )
 
+    TERRAIN = np.asarray(
+        topography.elevation(terrain_geo, "GEOID")
+    ).reshape(NORTH.shape)
 
-    # plot
+    # --------------------------------------------------
+    # Plot
+    # --------------------------------------------------
 
-    fig = plt.figure(figsize=(13, 10))
+    fig = plt.figure(figsize=(15, 11))
     ax = fig.add_subplot(111, projection="3d")
 
     # Topography
-    ax.plot_surface(WEST, NORTH, TERRAIN, cmap="terrain", alpha=0.85, linewidth=0, antialiased=True)
+    ax.plot_surface(
+        WEST, NORTH, TERRAIN,
+        cmap="terrain",
+        alpha=0.85,
+        linewidth=0,
+        antialiased=True
+    )
 
     # Antennas
-    ax.scatter(ant_pos[:, 1], ant_pos[:, 0], ant_pos[:, 2], color="royalblue", s=25, label="Antennas", depthshade=False)
+    ax.scatter(
+        ant_pos[:, 1],
+        ant_pos[:, 0],
+        ant_pos[:, 2],
+        color="royalblue",
+        s=25,
+        label="Antennas",
+        depthshade=False
+    )
 
+    # --------------------------------------------------
+    # Occulted antennas
+    # --------------------------------------------------
 
-    #plot of the occulted antennas
-
-    # Antennas inside the shower cone
-    selected_indices, _ = select_cone(xmax=xmax, theta_deg=zenith_deg, phi_deg=azimuth_deg, ant_pos=ant_pos, cone_angle=cone_angle)
+    selected_indices, _ = select_cone(
+        xmax=xmax,
+        theta_deg=zenith_deg,
+        phi_deg=azimuth_deg,
+        ant_pos=ant_pos,
+        cone_angle=cone_angle
+    )
 
     occulted_indices = []
 
@@ -258,49 +438,88 @@ def plot_3d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, plot_a
     print(f"Antennas in cone: {len(selected_indices)}")
     print(f"Occulted antennas: {len(occulted_indices)}")
 
-    # Draw one trajectory for each occulted antenna
+    # Draw trajectories towards occulted antennas
     for i, idx in enumerate(occulted_indices):
+
         antenna = ant_pos[idx]
-        # Actual trajectory: true Xmax -> antenna
         direction = antenna - xmax
-        # Clip the segment to the region z <= plot_altitude
+
         t_min = 0.0
         t_max = 1.0
+
+        # Clip trajectory at plot_altitude
         if abs(direction[2]) > 1e-9:
+
             t_limit = (plot_altitude - xmax[2]) / direction[2]
+
             if direction[2] > 0:
                 t_max = min(t_max, t_limit)
             else:
                 t_min = max(t_min, t_limit)
+
         if t_min > t_max or t_max < 0 or t_min > 1:
             continue
+
         t_min = max(0.0, t_min)
         t_max = min(1.0, t_max)
+
         start = xmax + t_min * direction
         end = xmax + t_max * direction
 
-        ax.plot([start[1], end[1]], [start[0], end[0]], [start[2], end[2]], color="orangered", linewidth=2, alpha=0.9, label="Xmax → occulted antenna" if i == 0 else None)
+        ax.plot(
+            [start[1], end[1]],
+            [start[0], end[0]],
+            [start[2], end[2]],
+            color="orangered",
+            linewidth=2,
+            alpha=0.9,
+            label="Xmax → occulted antenna" if i == 0 else None
+        )
 
-    # Core 
-    ax.scatter(core[1], core[0], core[2], color="black", marker="*", s=200, label="Core", depthshade=False)
+    # --------------------------------------------------
+    # Core and Xmax
+    # --------------------------------------------------
 
-    # Trajectory : Core -> Xmax at 2500 m
-    ax.plot([core[1], xmax_plot[1]], [core[0], xmax_plot[0]], [core[2], xmax_plot[2]], color="black", linestyle="--", linewidth=2, label="Core -> Xmax")
+    ax.scatter(
+        core[1], core[0], core[2],
+        color="black",
+        marker="*",
+        s=200,
+        label="Core",
+        depthshade=False
+    )
 
-    # "closer xmax"
-    ax.scatter(xmax_plot[1], xmax_plot[0], xmax_plot[2], color="red", s=80, label="Xmax (2500 m)", depthshade=False)
+    ax.plot(
+        [core[1], xmax_plot[1]],
+        [core[0], xmax_plot[0]],
+        [core[2], xmax_plot[2]],
+        color="black",
+        linestyle="--",
+        linewidth=2,
+        label="Core -> Xmax"
+    )
 
-    # axes
+    ax.scatter(
+        xmax_plot[1], xmax_plot[0], xmax_plot[2],
+        color="red",
+        s=80,
+        label=f"Xmax ({plot_altitude:.0f} m)",
+        depthshade=False
+    )
 
-    ax.set_xlim(-map_limit, map_limit)
-    ax.set_ylim(-map_limit, map_limit)
+    # --------------------------------------------------
+    # Axes limits
+    # --------------------------------------------------
+
+    ax.set_xlim(Y_LIM_MIN, Y_LIM_MAX)
+    ax.set_ylim(X_LIM_MIN, X_LIM_MAX)
     ax.set_zlim(0, max_altitude)
 
     ax.set_xlabel("Ouest (m)")
     ax.set_ylabel("Nord (m)")
     ax.set_zlabel("Altitude (m)")
 
-    ax.set_title("3D: topography, antennas, Core and Xmax")
+    ax.set_title("3D: Topography, antennas, Core and Xmax")
 
     ax.legend(loc="upper right")
     ax.view_init(elev=25, azim=-60)
@@ -314,11 +533,12 @@ def plot_3d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, plot_a
 def plot_2d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, map_limit=20000.0, max_altitude=3500.0, grid_size=500):
     """ TO DO : - comment the whole fucntion once it reaches a satisfying stage
                 - to be discussed : modify the output of is_ant_occluded to get the 
-                  distance between the collision point and the occluded antenna
+                distance between the collision point and the occluded antenna
                 - deciding on which antenna to select for the plots : all, only one, user customized selection ? 
-                  the thing is most of the 2d plots look the same
+                the thing is most of the 2d plots look the same
     """
 
+    # # For now, we make the same computatiosn yet another time so that the actual technical functiosn are cleared from plots.
     triggered_indices, amplitudes = select_cone(xmax, zenith_deg, azimuth_deg, ant_pos, cone_angle)
     occulted_indices = [i for i in triggered_indices if is_ant_occluded(ant_pos[i], xmax)]
 
@@ -326,11 +546,34 @@ def plot_2d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, map_li
         print("No occulted antenna in cone")
         return
 
-    # for now, plotting only for the first occluded antenna stored in the list
+    # triggered_indices, _ = select_cone(xmax, zenith_deg, azimuth_deg, ant_pos, cone_angle)
+
+    # occultation_results = [(i, is_ant_occluded(ant_pos[i], xmax)) for i in triggered_indices]
+
+    # occulted_indices = [i for i, result in occultation_results if result is True]
+    # visible_indices = [i for i, result in occultation_results if result is False]
+    # unknown_indices = [i for i, result in occultation_results if result is None]
+
+    # print(f"\nAntennas in cone : {len(triggered_indices)}")
+    # print(f"Visible           : {len(visible_indices)}")
+    # print(f"Occulted          : {len(occulted_indices)}")
+    # print(f"Unknown (None)    : {len(unknown_indices)}")
+
+    # print("\nIndices of occulted antennas :", occulted_indices)
+    # print("Indices of visible antennas  :", visible_indices)
+    # print("Indices of unknown antennas  :", unknown_indices)
+
+    # if len(occulted_indices) == 0:
+    #     print("No occulted antenna in cone")
+    #     return
+
+    # For now, plotting only for the first occluded antenna stored in the list
     ant_index = occulted_indices[0] 
     antenna = ant_pos[ant_index]
     direction = antenna - xmax
 
+
+    # We aren't displaying the trajectory from the actual xmax position, so there is no use in computing the coordinates of the points higher than a given altitude
     t = (max_altitude - xmax[2]) / direction[2]
 
     start_point = xmax + t * direction
@@ -354,9 +597,13 @@ def plot_2d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, map_li
 
     valid = np.isfinite(terrain_profile)
     ax.plot(distances[valid] / 1000, terrain_profile[valid], color="saddlebrown", linewidth=1.5, label="Topography")
+
+    # so that the north and west coordinates are displayed alongside the x-axis of the plot
     ticks = np.linspace(0, len(distances) - 1, 8, dtype=int)
     ax.set_xticks(distances[ticks] / 1000)
     ax.set_xticklabels([f"N={section_north[i]:.0f}\nW={section_west[i]:.0f}" for i in ticks])
+
+
     ax.set_xlabel("Coordinates (m)")
     ax.fill_between(distances[valid] / 1000, terrain_profile[valid], 500, color="sandybrown", alpha=0.4)
     ax.fill_between(distances[valid] / 1000, terrain_profile[valid], 2500, color="skyblue", alpha=0.3, label="Sky")
@@ -373,6 +620,11 @@ def plot_2d(core, xmax, ant_pos, zenith_deg, azimuth_deg, cone_angle=1.0, map_li
     plt.show()
 
 
+
+
+def save_figures():
+    return
+
 # to run tests _____________________________________________________________
 if __name__ == "__main__":
 
@@ -383,7 +635,6 @@ if __name__ == "__main__":
 
     # Adjusting of the altitudes of the antennas
     ant_geo = GRANDCS(x=ant_pos[:, 0], y=ant_pos[:, 1], z=np.zeros(len(ant_pos)), location=origin)
-
     terrain_altitude = np.asarray(topography.elevation(ant_geo, "GEOID")).ravel()
 
     # The antennas are HEIGHT_ANTENNA above the ground
@@ -395,25 +646,33 @@ if __name__ == "__main__":
         df_events = pd.read_sql_query("SELECT EventID, Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, Zenith, Azimuth FROM Events ORDER BY EventID", conn)
 
     results = []
+    IND_MIN = -1
+    IND_MAX = 251
+    # liste_in_cone_and_occulted = [3, 6, 8, 29, 53, 57, 72, 79, 80, 105, 115, 132, 213, 231]
 
-    # # processing each event
-    # for _, row in df_events.iterrows():
-    #     event_id = int(row["EventID"])
-    #     xmax = np.array([row["Xmax_N"], row["Xmax_W"], row["Xmax_U"] + ALTITUDE_OFFSET])
-    #     core = np.array([row["Core_N"], row["Core_W"], row["Core_U"] + ALTITUDE_OFFSET])
-    #     zenith = row["Zenith"]
-    #     azimuth = row["Azimuth"]
+    # processing each event
+    for _, row in df_events.iterrows():
 
-    #     selected_indices, _ = select_cone(xmax=xmax, theta_deg=zenith, phi_deg=azimuth, ant_pos=ant_pos, cone_angle=CONE_ANGLE)
-    #     visible_indices, hit = is_shower_occluded(xmax=xmax, zenith=zenith, azimuth=azimuth, ant_pos=ant_pos, cone_angle=CONE_ANGLE, min_trigger=MIN_TRIGGER)
+        event_id = int(row["EventID"])
+        if (not IND_MIN <= event_id < IND_MAX) :
+            continue
 
-    #     results.append({"EventID": event_id, "Zenith": zenith, "Azimuth": azimuth, "Core_U": core[2], "Xmax_U": xmax[2], "Antennes_in_cone": len(selected_indices), "Antennes_visibles": len(visible_indices), "Hit": hit})
+        print(f"START COMPUTATIONS EVENT {event_id}")
+        xmax = np.array([row["Xmax_N"], row["Xmax_W"], row["Xmax_U"] + ALTITUDE_OFFSET])
+        core = np.array([row["Core_N"], row["Core_W"], row["Core_U"] + ALTITUDE_OFFSET])
+        zenith = row["Zenith"]
+        azimuth = row["Azimuth"]
 
-    # # printing of the results
-    # df_results = pd.DataFrame(results)
+        selected_indices, _ = select_cone(xmax=xmax, theta_deg=zenith, phi_deg=azimuth, ant_pos=ant_pos, cone_angle=CONE_ANGLE)
+        visible_indices, hit = is_shower_occluded(xmax=xmax, zenith=zenith, azimuth=azimuth, ant_pos=ant_pos, cone_angle=CONE_ANGLE, min_trigger=MIN_TRIGGER)
 
-    # print("\nRésultats de l'occultation :")
-    # print(df_results.to_string(index=False))
+        results.append({"EventID": event_id, "Zenith": zenith, "Azimuth": azimuth, "Core_U": core[2], "Xmax_U": xmax[2], "Antennes_in_cone": len(selected_indices), "Antennes_visibles": len(visible_indices), "Hit": hit})
+
+    # printing of the results
+    df_results = pd.DataFrame(results)
+
+    print("\nRésultats de l'occultation :")
+    print(df_results.to_string(index=False))
 
     # Plot 3D de l'événement choisi
     EVENT_INDEX = 212 # Indice de 0 à 249
@@ -422,5 +681,5 @@ if __name__ == "__main__":
     core = np.array([row["Core_N"], row["Core_W"], row["Core_U"] + ALTITUDE_OFFSET])
     xmax = np.array([row["Xmax_N"], row["Xmax_W"], row["Xmax_U"] + ALTITUDE_OFFSET])
 
-    #plot_3d(core=core, xmax=xmax, ant_pos=ant_pos, zenith_deg=row["Zenith"], azimuth_deg=row["Azimuth"], cone_angle=CONE_ANGLE, plot_altitude=2500.0)
-    plot_2d(core=core, xmax=xmax, ant_pos=ant_pos, zenith_deg=row["Zenith"], azimuth_deg=row["Azimuth"], cone_angle=CONE_ANGLE)
+    # plot_3d(core=core, xmax=xmax, ant_pos=ant_pos, zenith_deg=row["Zenith"], azimuth_deg=row["Azimuth"], cone_angle=CONE_ANGLE, plot_altitude=6000.0)
+    # plot_2d(core=core, xmax=xmax, ant_pos=ant_pos, zenith_deg=row["Zenith"], azimuth_deg=row["Azimuth"], cone_angle=CONE_ANGLE)
