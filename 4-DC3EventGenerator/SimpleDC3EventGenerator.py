@@ -351,7 +351,7 @@ def main():
     
     dry_run = sec.getboolean("dry_run", fallback=False)
     EventSeed = sec.getint("EventSeed", fallback=np.random.random())
-    np.random.seed(EventSeed)
+    np.random.seed(int(EventSeed))
 
     print("#########################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")
@@ -527,6 +527,7 @@ def main():
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
                 trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
+                print(f"nombre d'antennes à tester : {len(trig_try)}")
                 
                 hit = len(trig_try) >= min_trigger
                 tested_cores.append((core_try, hit))
