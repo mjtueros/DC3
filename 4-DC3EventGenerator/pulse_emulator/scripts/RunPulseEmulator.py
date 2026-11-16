@@ -7,7 +7,8 @@ import torch
 
 
 # RFchain_computation (make_input), in pulse_emulator/DU_response_computation (see the README), wherever this runs from
-sys.path.append(str(Path(__file__).resolve().parent.parent / "DU_response_computation"))
+my_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(my_dir / "DU_response_computation"))
 from make_input import load_input_params_from_dict
 
 from pulse_emulator.data.input_formating import make_input_array
@@ -23,8 +24,9 @@ from pulse_emulator.surrogate.models import (
 
 sys.path.append('scripts/')  
 import joblib
-from local_paths import BASE_MODEL_PATH, RF_PARAMS_CONFIG_FILE
 
+BASE_MODEL_PATH = str(my_dir / "src/pulse_emulator/models/")
+RF_PARAMS_CONFIG_FILE = str(my_dir / "src/pulse_emulator/models/antenna/RF_params_new_leffs.json")
 
 CONFIG = {
     "paths": {
