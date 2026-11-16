@@ -1,0 +1,62 @@
+{
+  "model": {
+    "num_epochs": 300,
+    "name": "last_train_betercov",
+    "hidden_size": 450,
+    "n_layers": 3,
+    "activation": "silu",
+    "dropout": 0,
+    "skip_connection": 0,
+    "covar_param": "exp"
+  },
+  "training": {
+    "l1_reg": 0.0,
+    "max_grad_norm": 1.0,
+    "eval_every": 2,
+    "save_every": 4,
+    "early_stopping_patience": 90,
+    "seed": 43,
+    "loss": "hetero_nll_cov",
+    "scheduler": {
+      "type": "cosineWR",
+      "T_0": 30,
+      "T_mult": 2
+    },
+    "lr": 0.001,
+    "weight_decay": 1e-05
+  },
+  "data": {
+    "path": "/sep",
+    "batch_size": 512,
+    "inputs": [
+      "zenith",
+      "cos_azimuth",
+      "sin_azimuth",
+      "omega",
+      "cos_eta",
+      "sin_eta",
+      "l",
+      "energy_em",
+      "xmax_pos_z"
+    ],
+    "fold": "mean",
+    "outputs": [
+      "a",
+      "b",
+      "c",
+      "phase_q",
+      "phase_p"
+    ]
+  },
+  "covariance_head_refit": {
+    "source": "last_train",
+    "source_checkpoint": "model_last.pth",
+    "trunk_and_mean": "frozen",
+    "head_initialisation": "identity",
+    "lr": 0.01,
+    "weight_decay": 0.0,
+    "epochs_run": 162,
+    "best_val_nll": -6.989740914143191,
+    "created": "2026-08-21T00:03:11"
+  }
+}

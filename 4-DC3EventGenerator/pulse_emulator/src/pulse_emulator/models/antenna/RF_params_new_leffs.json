@@ -1,0 +1,27 @@
+{
+    "latitude": 40.96,
+    "duration": 2.048e-6,
+    "input_sampling_freq": 2e9,
+    "out_sampling_freq": 5e8,
+    "source_path":"/pbs/home/a/aferrier/WorkingDir/DU_response_computation",
+    "source_path_leffs":"/sps/grand/snonis/antenna_leff_sim_nec5_2026",
+    "s_parameters_path": "./files/electronics2",
+    "transfer_function_filename":null,
+    "balun1_filename": "balun_in_nut.s2p",
+    "matchnet_sn_filename": "MatchingNetworkX.s2p",
+    "matchnet_ew_filename": "MatchingNetworkY.s2p",
+    "matchnet_z_filename": "MatchingNetworkZ.s2p",
+    "LNA_sn_filename": "LNA-X.s2p",
+    "LNA_ew_filename": "LNA-Y.s2p",
+    "LNA_z_filename": "LNA-Z.s2p",
+    "cable_filename": "cable+Connector.s2p",
+    "vga_filename": "feb+amfitler+biast.s2p",
+    "balun2_filename": "balun_before_ad.s2p",
+    "zload_map_filename": "S_balun_AD.s1p",
+    "zant_map_filename": "Z_ant_3.2m.csv",
+    "path_to_GP300_EW": "./Light_GP300Antenna_EWarm_leff.npz",
+    "path_to_GP300_SN": "./Light_GP300Antenna_SNarm_leff.npz",
+    "path_to_GP300_Z": "./Light_GP300Antenna_Zarm_leff.npz"
+    }
+
+
