@@ -1,3 +1,5 @@
+# Please read at least the Installation and External code sections
+
 # pulse_emulator
 
 A neural-network emulator of the radio pulses produced by extensive air showers, plus the
@@ -10,7 +12,7 @@ learned predictive covariance. Combined with an antenna/RF-chain response it giv
 which can then be compared with data in a likelihood to reconstruct the shower.
 
 ## Installation
-Because you need scikit-learn 1.3 (at least for now), which is not compatible with grandlib, a solution is to create a venv ;
+Because you need scikit-learn 1.3 (at least for now), which is not compatible with grandlib, a solution is to create a venv with python3.11;
 Then :
 
 ```bash
@@ -30,7 +32,14 @@ git clone https://github.com/arsenefer/RFchain_computation DU_response_computati
 ```
 
 Its data (the S-parameters and the Leff maps) are not in that repository: the RF-chain parameter JSON
-(`RF_PARAMS_CONFIG_FILE`, below) gives where they are (`source_path`).
+(`RF_PARAMS_CONFIG_FILE`, below) gives where they are (`source_path`). If you are on the cc it should be fine, 
+if not you should change those fields in the JSON file (assuming you have grandlib installed somewhere) : 
+    "source_path":"YourPathToGrandlib/grand/data/detector",
+    "source_path_leffs": "YourPathToGrandlib/grand/data/detector"
+    "s_parameters_path": "./RFchain_v2",
+    "path_to_GP300_EW": "Light_GP300Antenna_EWarm_leff.npz",
+    "path_to_GP300_SN": "Light_GP300Antenna_SNarm_leff.npz",
+    "path_to_GP300_Z": "Light_GP300Antenna_Zarm_leff.npz"
 
 Without RFchain_computation, the package still imports (`import pulse_emulator`) and its E-field emulation runs;
 `RunPulseEmulator.py` does not, since it imports `make_input` from it. Calling a

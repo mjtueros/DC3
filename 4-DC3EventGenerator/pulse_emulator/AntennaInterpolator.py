@@ -24,8 +24,9 @@ def AntennaInterpolator(MainPath, zenith, azimuth, E_em, XmaxPos, AntennaPositio
     traces for the electric field are not filtered here
     """
 
-    XmaxPos = XmaxPos + np.array([0, 0, 1264]) # add the altitude of the site to the Xmax position    
-    AntennaPositions = AntennaPositions + np.array([0, 0, 1264]) # add the altitude of the site to the antenna positions
+    alt_detector = 1231 # altitude compared to sea level
+    XmaxPos = XmaxPos + np.array([0, 0, alt_detector]) # add the altitude of the site to the Xmax position    
+    AntennaPositions = AntennaPositions + np.array([0, 0, alt_detector]) # add the altitude of the site to the antenna positions
 
     PathToRun = 'RunPulseEmulator.py'
 

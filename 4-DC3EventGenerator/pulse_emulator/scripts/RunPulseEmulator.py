@@ -25,13 +25,15 @@ sys.path.append('scripts/')
 import joblib
 from local_paths import BASE_MODEL_PATH, RF_PARAMS_CONFIG_FILE
 
+
 CONFIG = {
     "paths": {
         "base_model_path": BASE_MODEL_PATH,
-        "model_subdir": "moriond/last_train_betercov/",
+        "model_subdir": "moriond/",
         "params_file": RF_PARAMS_CONFIG_FILE,
     },
 }
+
 
 # Loss names that imply an uncertainty head (see scripts/train/train_models.py).
 COVAR_HEAD_LOSSES = {"hetero_nll_cov", "covariance_nll"}
@@ -222,7 +224,6 @@ def main(thetas, phis, eems, xmax_poss, antenna_pos, voltage=True, ADC=True):
         params_rf["input_sampling_freq"] = params_rf["out_sampling_freq"]
     (_,
      latitude,
-     _,
      _input_sampling_freq,
      _out_sampling_freq,
      _n_samples,_sampling_period,_freqs,

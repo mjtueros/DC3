@@ -520,6 +520,8 @@ def main():
                         xmax_try, ant_pos, pulse_emulator_python, voltage=True, ADC=True)
                     # Not used yet: the trigger below still comes from the cone
                     triggering_dus = select_DUs_emulated_traces(emulated_traces, ant_ids)
+                    print("Emulator triggered DUs:", triggering_dus)
+    
                 
                 hit = len(trig_try) >= min_trigger
                 tested_cores.append((core_try, hit))
