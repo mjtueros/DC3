@@ -2,10 +2,10 @@
 # ZHAireS Input File generated from SQLite Trigger Database
 # ShowerName        : Xi_Sib_Proton_0.882_73.1_119.2_151
 # EventName         : Xi_Sib_Proton_0.882_73.1_119.2_151_r0
-# EventWeight       : 9.090909e-02
-# CorePosition_NWU  : 100.19 -2373.86 0.00
-# XmaxPosition_NWU  : -16554.89 31858.26 10254.76
-# XmaxDistance_m    : 39425.74
+# EventWeight       : 2.420000e-01
+# CorePosition_NWU  : -2358.83 2621.97 0.00
+# XmaxPosition_NWU  : -18813.53 32106.38 10254.76
+# XmaxDistance_km   : 35.29
 ################################################################################
 
 ##############################################################################
@@ -22,16 +22,12 @@ RandomSeed 0.623844174
 ####################################################################################
 # Antenna List created with CreateAntennaListInp v0.1                              #
 ####################################################################################
-AddAntenna 19      368.83     3220.73       21.59
-AddAntenna 23      362.45     3800.45       26.04
-AddAntenna 27      872.08     2940.23       12.43
-AddAntenna 31     -142.86     4083.65       34.98
-AddAntenna 35      864.56     3516.48       16.93
-AddAntenna 37     -642.25     4370.82       43.15
-AddAntenna 43      343.72     4377.59       29.59
-AddAntenna 47     -147.73     4664.51       37.46
-AddAntenna 81     -149.10     5241.66       40.00
-AddAntenna 93     -663.59     6102.61       52.29
+AddAntenna 16      828.87    -1792.36       47.42
+AddAntenna 20      818.89    -1214.72       51.28
+AddAntenna 40      814.44     -640.43       55.87
+AddAntenna 52      316.98     -931.90       59.86
+AddAntenna 82     -177.79     -645.35       69.69
+AddAntenna 88      306.88      226.67       68.82
 ####################################################################################
 FresnelTime On
 ZHAireS On
@@ -39,13 +35,24 @@ ZHAireS On
 # CreateAntennaListInp Finished                                                    #
 ####################################################################################
 
+####################################################################################
+# Expected amplitude at each antenna, from the EventGenerator (its mock model,     #
+# arbitrary units), for reference: AntennaID Amplitude                             #
+# 16 7.238776e-04
+# 20 7.434149e-04
+# 40 7.633701e-04
+# 52 7.630385e-04
+# 82 7.832652e-04
+# 88 8.058720e-04
+####################################################################################
+
 ######################################################################################
 # Antenna TimeWindow created with CreateTimeWindowInp v0                             #
-# Xmax to Antenna Distance:39.4257420 km
+# Xmax to Antenna Distance:35.2880600 km
 ######################################################################################
 AntennaTimeMin -250.00 ns
 AntennaTimeMax 750.00 ns
-ExpectedXmaxDist 39425.74 m
+ExpectedXmaxDist 35288.06 m
 ######################################################################################
 
 #Skeleton ##############################################################

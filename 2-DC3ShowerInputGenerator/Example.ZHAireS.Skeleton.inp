@@ -84,5 +84,7 @@ CoREASOutput On
 #not a sample and hold logic.
 TimeDomainBin 0.50 ns
 #
-
+# Chack Earth Shadow (default was Off on ZHAireS 1.0.30, but now is on so i put it here)
+EarthShadow Off
+#
 End

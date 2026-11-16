@@ -2,10 +2,10 @@
 # ZHAireS Input File generated from SQLite Trigger Database
 # ShowerName        : DeBug_Sib_Iron_0.159_71.6_92.02_4
 # EventName         : DeBug_Sib_Iron_0.159_71.6_92.02_4_r1
-# EventWeight       : 1.000000e+00
-# CorePosition_NWU  : -1719.62 878.96 0.00
-# XmaxPosition_NWU  : 472.41 34547.05 11794.00
-# XmaxDistance_km   : 37.36
+# EventWeight       : 1.470000e-01
+# CorePosition_NWU  : -44.88 5219.42 0.00
+# XmaxPosition_NWU  : -1283.28 40331.05 11687.35
+# XmaxDistance_km   : 37.03
 ################################################################################
 
 ##############################################################################
@@ -22,13 +22,11 @@ RandomSeed 0.282426146
 ####################################################################################
 # Antenna List created with CreateAntennaListInp v0.1                              #
 ####################################################################################
-AddAntenna 26     2697.26     -888.81        7.77
-AddAntenna 27     2691.88     -312.59       12.43
-AddAntenna 34     2705.75    -1466.75        3.48
-AddAntenna 39     3187.34     -598.65        2.21
-AddAntenna 50     3200.84    -1172.23        0.00
-AddAntenna 51     3191.27      -17.80        8.84
-AddAntenna 54     2712.74    -2042.80        3.80
+AddAntenna 47       -2.67    -2928.77       12.30
+AddAntenna 81       -4.03    -2351.61       14.84
+AddAntenna 93     -518.52    -1490.67       27.13
+AddAntenna 105      481.68    -1480.62       14.08
+AddAntenna 119      -30.67     -621.81       25.11
 ####################################################################################
 FresnelTime On
 ZHAireS On
@@ -36,13 +34,23 @@ ZHAireS On
 # CreateAntennaListInp Finished                                                    #
 ####################################################################################
 
+####################################################################################
+# Expected amplitude at each antenna, from the EventGenerator (its mock model,     #
+# arbitrary units), for reference: AntennaID Amplitude                             #
+# 47 6.307362e-04
+# 81 6.486535e-04
+# 93 6.772360e-04
+# 105 6.763490e-04
+# 119 7.069785e-04
+####################################################################################
+
 ######################################################################################
 # Antenna TimeWindow created with CreateTimeWindowInp v0                             #
-# Xmax to Antenna Distance:37.3584800 km
+# Xmax to Antenna Distance:37.0264000 km
 ######################################################################################
 AntennaTimeMin -250.00 ns
 AntennaTimeMax 750.00 ns
-ExpectedXmaxDist 37358.48 m
+ExpectedXmaxDist 37026.40 m
 ######################################################################################
 
 #Skeleton ##############################################################
@@ -56,13 +64,14 @@ PropagatePrimary On
 #Configure the site
 #------------------------------------------------------------------------------
 # Define a new site (note that the Ground Altitude will be overriden if the GroundAlitude directive is used)
-AddSite Xiaodushan 40.99 deg 93.94 deg 1264.00 m
+AddSite GP65NCS 40.96 deg 93.97 deg 1231.00 m
 # Select the new site
-Site Xiaodushan
-#Seting the magnetic field (if it is not set manually, it will look in IGRF13
-GeomagneticField 56.482 uT 61.6 deg 0.1253 deg
+Site GP65NCS
+#Seting the magnetic field (Values from IGRF 14 for the 2026 05 13, at 10km altitude, for 40.96 deg N  93.97 deg E)
+#
+GeomagneticField 56.466 uT 62.038 deg 0.053 deg
 #Setting the date is irrelevant if we manually set the Magnetic Field, but if not, is used to get the magnetic field for that date
-Date 2022 10 26
+Date 2026 05 13
 
 #Configure the atmosphere
 #------------------------------------------------------------------------------
@@ -132,5 +141,7 @@ CoREASOutput On
 #not a sample and hold logic.
 TimeDomainBin 0.50 ns
 #
-
+# Check Earth Shadow (default was Off on ZHAireS 1.0.30, but on 1.2 is On so i put it here)
+EarthShadow Off
+#
 End

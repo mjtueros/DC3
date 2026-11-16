@@ -26,3 +26,11 @@ python ../5-DC3EventEfieldInputGenerator/SimpleDC3ZHAireSEventEfieldInputGenerat
 
 
 To regenerate the Showers and their input files, you will have to have ZHAireS properly installed in your system, of course.
+
+
+For your comfort, if you want to copy only the sry files needed for step 3, you can do 
+
+rsync -avm --include="*/" --include="*.sry" --exclude="*" /path/to/source_library/ /path/to/destination/
+rsync -avm --include="*/" --include="*.sry" --exclude="*" /home/mjtueros/GRAND/DC3/DEBUGLibrary/Outbox/ ./DEBUGShowerLibrary/
+
+

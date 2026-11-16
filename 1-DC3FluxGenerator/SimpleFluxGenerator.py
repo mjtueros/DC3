@@ -32,65 +32,10 @@ from NaturalWeights import natural_weights, SPECTRA, GEOMETRIES
 # What to do with an output database that already exists (issue #51), shared by the scripts that write one
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
 import OutputDatabase
-# ==============================================================================
-# HELPER FUNCTIONS
-# ==============================================================================
-def resolve_ini_path(config_file_path, path_str):
-    """
-    Resolves a path from the INI file. If relative, it is strictly resolved
-    relative to the directory containing the INI file.
-    """
-    if not path_str or not path_str.strip():
-        return ""
-    path_str = path_str.strip()
-    if os.path.isabs(path_str):
-        return path_str
-    config_dir = os.path.dirname(os.path.abspath(config_file_path))
-    return os.path.abspath(os.path.join(config_dir, path_str))
+import utils
 
-def pause_for_review(timeout=5.0):
-    """
-    Pauses for `timeout` seconds to let the user review configuration.
-    If a key is pressed during the countdown, execution pauses until another
-    key is pressed, then resumes.
-    """
-    print(f"Proceeding in {int(timeout)} seconds. Press any key to pause and review...")
-    if not sys.stdin.isatty():
-        time.sleep(timeout)
-        return
-
-    import termios
-    import tty
-
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setcbreak(fd)
-        rlist, _, _ = select.select([sys.stdin], [], [], timeout)
-        if rlist:
-            _ = sys.stdin.read(1)
-            print("\n[PAUSED] Configuration review paused. Press any key to resume...")
-            _ = sys.stdin.read(1)
-            print("Resuming execution...\n")
-        else:
-            print("Continuing...\n")
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-
-# ==============================================================================
-# CONFIGURATION PARSER
-# ==============================================================================
-if len(sys.argv) != 2:
-    print(f"Usage: python3 {os.path.basename(sys.argv[0])} <config.ini>")
-    sys.exit(1)
-
-config_file = os.path.abspath(sys.argv[1])
-if not os.path.isfile(config_file):
-    print(f"ERROR: Configuration file '{config_file}' not found.")
-    sys.exit(1)
-
-config = configparser.ConfigParser()
-config.read(config_file)
+# Parse configuration file from command line arguments
+config_file, config = utils.parse_config_argv(sys.argv)
 
 if "FluxGenerator" not in config:
     print(f"ERROR: Section [FluxGenerator] not found in '{config_file}'.")
@@ -99,7 +44,7 @@ if "FluxGenerator" not in config:
 sec = config["FluxGenerator"]
 
 Nsims = sec.getint("Nsims", fallback=250)
-OutputFileName = resolve_ini_path(config_file, sec.get("OutputFileName", fallback="ExampleFlux.sqlite"))
+OutputFileName = utils.resolve_ini_path(config_file, sec.get("OutputFileName", fallback="ExampleFlux.sqlite"))
 LibraryPrefix = sec.get("LibraryPrefix", fallback="Xi")
 ModelBins = [m.strip() for m in sec.get("ModelBins", fallback="Sib").split(",") if m.strip()]
 PrimaryBins = [p.strip() for p in sec.get("PrimaryBins", fallback="Proton, Iron").split(",") if p.strip()]
@@ -124,7 +69,7 @@ if natural_geometry not in GEOMETRIES:
     sys.exit(1)
 
 # Setting seed for random number generator
-FluxSeed = sec.getint("FluxSeed", fallback=random.random())
+FluxSeed = sec.getint("FluxSeed", fallback=int(random.random()*1e6))
 # Initializing both random number generators, as they are independent.
 random.seed(FluxSeed)
 np.random.seed(FluxSeed)
@@ -155,7 +100,7 @@ if os.path.exists(OutputFileName):
 else:
     overwrite_output = False
 
-pause_for_review(5.0)
+utils.pause_for_review(5.0)
 
 # ==============================================================================
 # Zenith Section
@@ -179,7 +124,10 @@ def generate_random_zenith(num_samples, theta_min_deg=0, theta_max_deg=80):
     zenith_radians = np.arccos(10**(-x_samples))
     return np.degrees(zenith_radians)
 
-RandomZeniths = generate_random_zenith(Nsims, mintheta, maxtheta)
+#Generate the random zenith angle and round to 2 decimals, as ZHAireS sry file only keeps 2
+RandomZeniths = np.round(generate_random_zenith(Nsims, mintheta, maxtheta),decimals=2)
+
+
 
 if show_plots:
     plot_flux_distributions(zenith_deg=RandomZeniths, show=True)
@@ -187,7 +135,8 @@ if show_plots:
 # ==============================================================================
 # Azimuth Section
 # ==============================================================================
-RandomAzimuths = np.random.uniform(low=minphi, high=maxphi, size=Nsims)
+#Generate the random azimuth angle and round to 2 decimals, as ZHAireS sry file only keeps 2
+RandomAzimuths = np.round(np.random.uniform(low=minphi, high=maxphi, size=Nsims),decimals=2)
 
 if show_plots:
     plot_flux_distributions(azimuth_deg=RandomAzimuths, show=True)
@@ -203,6 +152,10 @@ print("max Energy (GeV):" + str(Emax) + " -> log10 (Emax) " + str(LogEmax))
 
 RandomLogEnergies = np.random.uniform(low=LogEmin, high=LogEmax, size=Nsims)
 RandomEnergies = np.power(10, RandomLogEnergies)
+
+#Truncate to 10TeV (5 decimals in EeV, as this is what ZHAireS input generator does)
+RandomEnergies=np.round(RandomEnergies/10000.0,decimals=0)*10000
+
 
 if show_plots:
     plot_flux_distributions(energy_gev=RandomEnergies, show=True)
@@ -257,7 +210,7 @@ for i in range(0, Nsims):
     Zenith = float(RandomZeniths[i])
     Azimuth = float(RandomAzimuths[i])
     
-    RandomSeed_str = f"{RandomSeed:.10f}"
+    RandomSeed_str = f"{RandomSeed:.9f}"
     Energystring = '{0:.3}'.format(Energy/1e9)
     Zenithstring = '{0:.3}'.format(Zenith)
     Azimuthstring = '{0:.4}'.format(Azimuth)

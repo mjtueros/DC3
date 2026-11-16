@@ -17,7 +17,7 @@
 >>>> This is AIRES version 19.04.10 (23/Jan/2023)
 >>>> With ZHAireS version 1.0.30b (06/Aug/2021) extension
 >>>> (Compiled by mjtueros@organa, date: 09/Jun/2023) **
->>>> USER: mjtueros, HOST: lpnlp173, DATE: 22/Oct/2026
+>>>> USER: mjtueros, HOST: lpnlp173, DATE: 10/Nov/2026
 >>>>
 
 >>>>
@@ -39,11 +39,11 @@
                            Task Name: DeBug_Sib_Iron_0.281_71.7_94.17_6_r1
 
 
-               Current date and time: 22/Oct/2026 20:15:29
+               Current date and time: 10/Nov/2026 01:05:37
 
-          Processing started at date: 22/Oct/2026 19:04:38
+          Processing started at date: 09/Nov/2026 22:59:58
 
-            Processing ended at date: 22/Oct/2026 20:15:28
+            Processing ended at date: 10/Nov/2026 01:05:36
 
              Total number of showers:          1
 
@@ -51,11 +51,11 @@
 
                       Number of runs:          1
 
-                      Total CPU time: 1 hr 08 min 13.94 sec
+                      Total CPU time: 1 hr 52 min 50.02 sec
 
 
 
-            Avg. CPU time per shower: 1 hr 08 min 13.71 sec
+            Avg. CPU time per shower: 1 hr 52 min 49.51 sec
 
 
 
@@ -83,9 +83,9 @@
                  Output summary file: DeBug_Sib_Iron_..._71.7_94.17_6_r1.sry    
 
      BASIC PARAMETERS:
-                                Site: Xiaodushan
-                                      (Lat:  40.99 deg. Long:   93.94 deg.)
-                                Date: 26/Oct/2022
+                                Site: GP65NCS
+                                      (Lat:  40.96 deg. Long:   93.97 deg.)
+                                Date: 13/May/2026
 
                     Primary particle: Fe^56 (Z=26, N=30)
                       Primary energy: 281.29 PeV
@@ -94,12 +94,12 @@
               Zero azimuth direction: Local magnetic north
                      Thinning energy: 1.0000E-05 Relative
      (D)          Injection altitude: 100.00 km (9.8698754E-04 g/cm2)
-     (D)             Ground altitude: 1.2640 km (904.5084 g/cm2)
+     (D)             Ground altitude: 1.2310 km (907.9636 g/cm2)
            First obs. level altitude: 100.00 km (9.8698754E-04 g/cm2)
             Last obs. level altitude: 1.2640 km (904.5084 g/cm2)
           Obs. levels and depth step:        510     1.777 g/cm2
-                   Geomagnetic field: Intensity: 56.482 uT
-                                      I:   61.60 deg. D:    0.13 deg
+                   Geomagnetic field: Intensity: 56.466 uT
+                                      I:   62.04 deg. D:    0.05 deg
      (D)         Table energy limits: 10.000 MeV to 210.97 PeV
                  Table radial limits: 100.00 m  to 20.000 km
 
@@ -116,10 +116,11 @@
               ZHAireS Radio Routines: On
      (D)     Calculate Sum of Tracks: Off
                         Fresnel Time: On
+                        Earth Shadow: Off
                 Time Domain Bin Size: 5.0000E-10 sec
              Antenna Time Window Min: -2.5000E-07 sec
              Antenna Time Window Max: 7.5000E-07 sec
-                Exp Distance To Xmax: 35.778 km
+                Exp Distance To Xmax: 37.079 km
               Reduced ZHAireS Output: On
             CoREAS compatible Output: On
             Max. stat. weight factor: 6.0000000E-02
@@ -130,7 +131,7 @@
      (D)                FLUKA switch: Off
 
      MISCELLANEOUS:
-            Seed of random generator: 0.664318735000
+            Seed of random generator: 0.664318734000
                    Atmospheric model: DunhuangFromChao                          
   
     ZHAireS CONFIGURATION:
@@ -148,16 +149,14 @@
         Antennas used for the Fresnel formalism
         (with height expressed above sea level)
         Antenna|      Label      |   X [m]   |    Y [m]   |    Z [m]   |    t0 [ns]
-           1    24                   -4820.86      1239.99      1320.92     -3980.00
-           2    25                   -4812.61       660.94      1322.39     -2158.50
-           3    32                   -4825.38      1817.29      1320.25     -5794.50
-           4    33                   -4804.50        82.44      1322.03      -333.50
-           5    38                   -5315.94       950.78      1332.38     -2958.50
-           6    48                   -5330.17      1531.82      1330.38     -4780.00
-           7    49                   -5307.04       367.24      1333.10     -1122.50
-           8    52                   -4833.67      2394.35      1323.86     -7608.00
-           9    53                   -4799.87      -493.04      1322.35      1485.00
-          10    82                   -5328.44      2680.90      1333.69     -8387.50
+           1    9                      -29.91      2343.94      1244.12     -7380.00
+           2    14                     474.08      2060.76      1235.09     -6349.00
+           3    17                    -533.33      2627.42      1253.68     -8390.00
+           4    21                    -527.41      2052.04      1253.72     -6583.00
+           5    29                     -25.22      1766.64      1244.26     -5567.50
+           6    36                     477.17      1486.30      1234.23     -4544.50
+           7    41                    -522.03      1472.11      1254.07     -4758.50
+           8    45                     -15.31      1195.58      1243.39     -3768.00
   
       Time bin size:  0.50ns
 
@@ -186,41 +185,41 @@
                       Item     Mean   RMS Err.   Stddv.    Min.     Max.
 
  Stack 1
-         Particles stacked:  10.83282   0.0000   0.0000  10.8328  10.8328
-            Particles lost:   0.00153   0.0000   0.0000   0.0015   0.0015
-           Low-E particles:  12.18849   0.0000   0.0000  12.1885  12.1885
-  Pcles. that reached gnd.:   0.00168   0.0000   0.0000   0.0017   0.0017
+         Particles stacked:  10.82595   0.0000   0.0000  10.8259  10.8259
+            Particles lost:   0.00212   0.0000   0.0000   0.0021   0.0021
+           Low-E particles:  12.18241   0.0000   0.0000  12.1824  12.1824
+  Pcles. that reached gnd.:   0.00166   0.0000   0.0000   0.0017   0.0017
 
  Stack 2
-         Particles stacked:  18.35219   0.0000   0.0000  18.3522  18.3522
-            Particles lost:   0.00002   0.0000   0.0000   0.0000   0.0000
-           Low-E particles:  21.95509   0.0000   0.0000  21.9551  21.9551
-  Pcles. that reached gnd.:   0.00035   0.0000   0.0000   0.0003   0.0003
+         Particles stacked:  18.33444   0.0000   0.0000  18.3344  18.3344
+            Particles lost:   0.00004   0.0000   0.0000   0.0000   0.0000
+           Low-E particles:  21.93533   0.0000   0.0000  21.9353  21.9353
+  Pcles. that reached gnd.:   0.00033   0.0000   0.0000   0.0003   0.0003
 
  Stack 3
-         Particles stacked:   0.00991   0.0000   0.0000   0.0099   0.0099
+         Particles stacked:   0.00927   0.0000   0.0000   0.0093   0.0093
             Particles lost:   0.00001   0.0000   0.0000   0.0000   0.0000
-           Low-E particles:   0.00325   0.0000   0.0000   0.0033   0.0033
+           Low-E particles:   0.00315   0.0000   0.0000   0.0031   0.0031
   Pcles. that reached gnd.:   0.00000   0.0000   0.0000   0.0000   0.0000
 
  Stack 4
-         Particles stacked:   0.02580   0.0000   0.0000   0.0258   0.0258
+         Particles stacked:   0.02429   0.0000   0.0000   0.0243   0.0243
             Particles lost:   0.00000   0.0000   0.0000   0.0000   0.0000
-           Low-E particles:   0.00423   0.0000   0.0000   0.0042   0.0042
-  Pcles. that reached gnd.:   0.00067   0.0000   0.0000   0.0007   0.0007
+           Low-E particles:   0.00404   0.0000   0.0000   0.0040   0.0040
+  Pcles. that reached gnd.:   0.00063   0.0000   0.0000   0.0006   0.0006
 
  Totals:
-         Particles stacked:  29.22072   0.0000   0.0000  29.2207  29.2207
-            Particles lost:   0.00157   0.0000   0.0000   0.0016   0.0016
-           Low-E particles:  34.15106   0.0000   0.0000  34.1511  34.1511
-  Pcles. that reached gnd.:   0.00270   0.0000   0.0000   0.0027   0.0027
+         Particles stacked:  29.19395   0.0000   0.0000  29.1939  29.1939
+            Particles lost:   0.00218   0.0000   0.0000   0.0022   0.0022
+           Low-E particles:  34.12492   0.0000   0.0000  34.1249  34.1249
+  Pcles. that reached gnd.:   0.00262   0.0000   0.0000   0.0026   0.0026
 
 
  Other particles not processed in stacks.
 
 
 
-                 Neutrinos:   0.02189   0.0000   0.0000   0.0219   0.0219
+                 Neutrinos:   0.02065   0.0000   0.0000   0.0207   0.0207
       Unphysical particles:   0.00000   0.0000   0.0000   0.0000   0.0000
 
 
@@ -235,42 +234,42 @@
                       Item      Mean   RMS Err.   Stddv.     Min.     Max.
 
  Stack 1
-             Medium losses:  0.0002992  0.00000  0.00000  0.00030  0.00030
-            Particles lost:  0.0000778  0.00000  0.00000  0.00008  0.00008
-           Low-E particles:  0.0244198  0.00000  0.00000  0.02442  0.02442
-  Pcles. that reached gnd.:  0.0002268  0.00000  0.00000  0.00023  0.00023
+             Medium losses:  0.0002899  0.00000  0.00000  0.00029  0.00029
+            Particles lost:  0.0001024  0.00000  0.00000  0.00010  0.00010
+           Low-E particles:  0.0244072  0.00000  0.00000  0.02441  0.02441
+  Pcles. that reached gnd.:  0.0002133  0.00000  0.00000  0.00021  0.00021
 
  Stack 2
-             Medium losses:  0.6939179  0.00000  0.00000  0.69392  0.69392
-            Particles lost:  0.0000040  0.00000  0.00000  0.00000  0.00000
-           Low-E particles:  0.0665615  0.00000  0.00000  0.06656  0.06656
-  Pcles. that reached gnd.:  0.0001551  0.00000  0.00000  0.00016  0.00016
+             Medium losses:  0.6932442  0.00000  0.00000  0.69324  0.69324
+            Particles lost:  0.0000065  0.00000  0.00000  0.00001  0.00001
+           Low-E particles:  0.0664967  0.00000  0.00000  0.06650  0.06650
+  Pcles. that reached gnd.:  0.0001326  0.00000  0.00000  0.00013  0.00013
 
  Stack 3
-             Medium losses:  0.0037227  0.00000  0.00000  0.00372  0.00372
-            Particles lost:  0.0000121  0.00000  0.00000  0.00001  0.00001
-           Low-E particles:  0.0005256  0.00000  0.00000  0.00053  0.00053
-  Pcles. that reached gnd.:  0.0000006  0.00000  0.00000  0.00000  0.00000
+             Medium losses:  0.0035622  0.00000  0.00000  0.00356  0.00356
+            Particles lost:  0.0000148  0.00000  0.00000  0.00001  0.00001
+           Low-E particles:  0.0005037  0.00000  0.00000  0.00050  0.00050
+  Pcles. that reached gnd.:  0.0000007  0.00000  0.00000  0.00000  0.00000
 
  Stack 4
-             Medium losses:  0.0315659  0.00000  0.00000  0.03157  0.03157
-            Particles lost:  0.0000024  0.00000  0.00000  0.00000  0.00000
-           Low-E particles:  0.0009314  0.00000  0.00000  0.00093  0.00093
-  Pcles. that reached gnd.:  0.0983743  0.00000  0.00000  0.09837  0.09837
+             Medium losses:  0.0293906  0.00000  0.00000  0.02939  0.02939
+            Particles lost:  0.0000044  0.00000  0.00000  0.00000  0.00000
+           Low-E particles:  0.0008952  0.00000  0.00000  0.00090  0.00090
+  Pcles. that reached gnd.:  0.1019757  0.00000  0.00000  0.10198  0.10198
 
  Totals:
 
             Primary energy:  1.0000000  0.00000  0.00000  1.00000  1.00000
 
-             Medium losses:  0.7295057  0.00000  0.00000  0.72951  0.72951
-            Particles lost:  0.0000964  0.00000  0.00000  0.00010  0.00010
-           Low-E particles:  0.0924383  0.00000  0.00000  0.09244  0.09244
-  Pcles. that reached gnd.:  0.0987568  0.00000  0.00000  0.09876  0.09876
+             Medium losses:  0.7264869  0.00000  0.00000  0.72649  0.72649
+            Particles lost:  0.0001280  0.00000  0.00000  0.00013  0.00013
+           Low-E particles:  0.0923028  0.00000  0.00000  0.09230  0.09230
+  Pcles. that reached gnd.:  0.1023222  0.00000  0.00000  0.10232  0.10232
 
 
  Other particles not processed in stacks.
 
-                 Neutrinos:  0.0878349  0.00000  0.00000  0.08783  0.08783
+                 Neutrinos:  0.0867641  0.00000  0.00000  0.08676  0.08676
       Unphysical particles:  0.0000000  0.00000  0.00000  0.00000  0.00000
 
 
@@ -283,15 +282,15 @@
 
                            Mean   RMS Err.   Stddv.    Min.     Max.
 
-     Gamma rays         1677.9842    0.000    0.000 1677.984 1677.984
+     Gamma rays         1659.1651    0.000    0.000 1659.165 1659.165
 
-     Electrons           260.5757    0.000    0.000  260.576  260.576
-     Positrons            85.2987    0.000    0.000   85.299   85.299
-     Electr & positr     345.8744    0.000    0.000  345.874  345.874
+     Electrons           252.2088    0.000    0.000  252.209  252.209
+     Positrons            82.1404    0.000    0.000   82.140   82.140
+     Electr & positr     334.3492    0.000    0.000  334.349  334.349
 
-     Muons (+)           309.0764    0.000    0.000  309.076  309.076
-     Muons (-)           364.7977    0.000    0.000  364.798  364.798
-     All muons           673.8741    0.000    0.000  673.874  673.874
+     Muons (+)           295.2309    0.000    0.000  295.231  295.231
+     Muons (-)           333.0105    0.000    0.000  333.010  333.010
+     All muons           628.2414    0.000    0.000  628.241  628.241
 
      Pions (+)             0.0000    0.000    0.000    0.000    0.000
      Pions (-)             0.0000    0.000    0.000    0.000    0.000
@@ -301,15 +300,15 @@
      Kaons (-)             0.0000    0.000    0.000    0.000    0.000
      All kaons             0.0000    0.000    0.000    0.000    0.000
 
-     Neutrons              0.5834    0.000    0.000    0.583    0.583
-     Protons               0.0000    0.000    0.000    0.000    0.000
+     Neutrons              0.5626    0.000    0.000    0.563    0.563
+     Protons               0.0056    0.000    0.000    0.006    0.006
      Anti-protons          0.0000    0.000    0.000    0.000    0.000
 
      Nuclei                0.0000    0.000    0.000    0.000    0.000
 
-     All charged        1019.7485    0.000    0.000 1019.749 1019.749
-     All neutral        1678.5676    0.000    0.000 1678.568 1678.568
-     All particles      2698.3161    0.000    0.000 2698.316 2698.316
+     All charged         962.5963    0.000    0.000  962.596  962.596
+     All neutral        1659.7276    0.000    0.000 1659.728 1659.728
+     All particles      2622.3239    0.000    0.000 2622.324 2622.324
 
 
 
@@ -321,15 +320,15 @@
 
                            Mean   RMS Err.   Stddv.    Min.     Max.
 
-     Gamma rays          7.946000  0.00000  0.00000  7.94600  7.94600
+     Gamma rays          7.926000  0.00000  0.00000  7.92600  7.92600
 
-     Electrons           4.259000  0.00000  0.00000  4.25900  4.25900
-     Positrons           0.527000  0.00000  0.00000  0.52700  0.52700
-     Electr & positr     4.786000  0.00000  0.00000  4.78600  4.78600
+     Electrons           4.126000  0.00000  0.00000  4.12600  4.12600
+     Positrons           0.553000  0.00000  0.00000  0.55300  0.55300
+     Electr & positr     4.679000  0.00000  0.00000  4.67900  4.67900
 
-     Muons (+)          16.821000  0.00000  0.00000 16.82100 16.82100
-     Muons (-)          19.283000  0.00000  0.00000 19.28300 19.28300
-     All muons          36.104000  0.00000  0.00000 36.10400 36.10400
+     Muons (+)          16.156000  0.00000  0.00000 16.15600 16.15600
+     Muons (-)          18.187000  0.00000  0.00000 18.18700 18.18700
+     All muons          34.343000  0.00000  0.00000 34.34300 34.34300
 
      Pions (+)           0.000000  0.00000  0.00000  0.00000  0.00000
      Pions (-)           0.000000  0.00000  0.00000  0.00000  0.00000
@@ -339,15 +338,15 @@
      Kaons (-)           0.000000  0.00000  0.00000  0.00000  0.00000
      All kaons           0.000000  0.00000  0.00000  0.00000  0.00000
 
-     Neutrons            0.028000  0.00000  0.00000  0.02800  0.02800
-     Protons             0.000000  0.00000  0.00000  0.00000  0.00000
+     Neutrons            0.022000  0.00000  0.00000  0.02200  0.02200
+     Protons             0.001000  0.00000  0.00000  0.00100  0.00100
      Anti-protons        0.000000  0.00000  0.00000  0.00000  0.00000
 
      Nuclei              0.000000  0.00000  0.00000  0.00000  0.00000
 
-     All charged        40.890000  0.00000  0.00000 40.89000 40.89000
-     All neutral         7.974000  0.00000  0.00000  7.97400  7.97400
-     All particles      48.864000  0.00000  0.00000 48.86400 48.86400
+     All charged        39.023000  0.00000  0.00000 39.02300 39.02300
+     All neutral         7.948000  0.00000  0.00000  7.94800  7.94800
+     All particles      46.971000  0.00000  0.00000 46.97100 46.97100
 
 
 
@@ -359,15 +358,15 @@
 
                            Mean   RMS Err.   Stddv.    Min.     Max.
 
-     Gamma rays           63.7858     0.00     0.00    63.79    63.79
+     Gamma rays           59.9862     0.00     0.00    59.99    59.99
 
-     Electrons            29.0424     0.00     0.00    29.04    29.04
-     Positrons            14.5991     0.00     0.00    14.60    14.60
-     Electr & positr      43.6415     0.00     0.00    43.64    43.64
+     Electrons            22.6134     0.00     0.00    22.61    22.61
+     Positrons            14.6751     0.00     0.00    14.68    14.68
+     Electr & positr      37.2884     0.00     0.00    37.29    37.29
 
-     Muons (+)         13521.6889     0.00     0.00 13521.69 13521.69
-     Muons (-)         14150.0124     0.00     0.00 14150.01 14150.01
-     All muons         27671.7012     0.00     0.00 27671.70 27671.70
+     Muons (+)         14341.4450     0.00     0.00 14341.45 14341.45
+     Muons (-)         14343.2994     0.00     0.00 14343.30 14343.30
+     All muons         28684.7444     0.00     0.00 28684.74 28684.74
 
      Pions (+)             0.0000     0.00     0.00     0.00     0.00
      Pions (-)             0.0000     0.00     0.00     0.00     0.00
@@ -377,15 +376,15 @@
      Kaons (-)             0.0000     0.00     0.00     0.00     0.00
      All kaons             0.0000     0.00     0.00     0.00     0.00
 
-     Neutrons              0.1657     0.00     0.00     0.17     0.17
-     Protons               0.0000     0.00     0.00     0.00     0.00
+     Neutrons              0.1978     0.00     0.00     0.20     0.20
+     Protons               0.0049     0.00     0.00     0.00     0.00
      Anti-protons          0.0000     0.00     0.00     0.00     0.00
 
      Nuclei                0.0000     0.00     0.00     0.00     0.00
 
-     All charged       27715.3427     0.00     0.00 27715.34 27715.34
-     All neutral          63.9515     0.00     0.00    63.95    63.95
-     All particles     27779.2942     0.00     0.00 27779.29 27779.29
+     All charged       28722.0377     0.00     0.00 28722.04 28722.04
+     All neutral          60.1840     0.00     0.00    60.18    60.18
+     All particles     28782.2217     0.00     0.00 28782.22 28782.22
 
 
 
@@ -394,21 +393,21 @@
 
                                Mean   RMS Err.   Stddv.    Min.     Max.
 
- Vt. first interact. depth:     0.532     0.00     0.00     0.53     0.53
- Sl. first interact. depth:     1.564     0.00     0.00     1.56     1.56
+ Vt. first interact. depth:     3.175     0.00     0.00     3.17     3.17
+ Sl. first interact. depth:     9.484     0.00     0.00     9.48     9.48
          (Depths in g/cm2)
 
 
      Shower maximum estimation:
 
- Vt. depth of max. (g/cm2):   201.701     0.00     0.00   201.70   201.70
- Sl. depth of max. (g/cm2):   625.948     0.00     0.00   625.95   625.95
- Charged pcles. at maximum:   199.460     0.00     0.00   199.46   199.46
+ Vt. depth of max. (g/cm2):   190.921     0.00     0.00   190.92   190.92
+ Sl. depth of max. (g/cm2):   592.161     0.00     0.00   592.16   592.16
+ Charged pcles. at maximum:   195.417     0.00     0.00   195.42   195.42
               (Times 10^6)
 
 
   (all in Km)   Altitude  Distance     x          y          z
-  Pos. Max.:    12.59422   35.77770   -2.46989   33.87638   12.50385
+  Pos. Max.:    12.97680   37.07922   -2.55974   35.10874   12.87974
 
      The fits were done with the Levenberg-Marquardt
      nonlinear least-squares fitting algorithm, modelling
