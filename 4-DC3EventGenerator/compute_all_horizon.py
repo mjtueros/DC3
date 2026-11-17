@@ -78,8 +78,6 @@ def get_max_visible_zenith(ant_pos, azimuth_deg, zenith_precision, xmax_altitude
             )
 
         distance = abs(float(np.asarray(distance).item()))
-        if 10 < azimuth_deg < 40: 
-                print(f"Azimuth={azimuth_deg}°, Zenith={zenith_deg}°, "f"Impact distance={segment_length - distance:.2f} m")
 
         return distance >= segment_length - DISTANCE_MARGIN
 
@@ -94,7 +92,6 @@ def get_max_visible_zenith(ant_pos, azimuth_deg, zenith_precision, xmax_altitude
     while zenith_max - zenith_min > zenith_precision:
 
         zenith_mid = (zenith_min + zenith_max) / 2.0
-        print(zenith_mid, is_visible(zenith_mid))
         if is_visible(zenith_mid):
             zenith_min = zenith_mid
         else:
@@ -199,8 +196,8 @@ if __name__ == "__main__":
 
 
     df_results = compute_max_zenith_table(
-        ant_pos=ant_pos[mask],
-        ant_ids=ant_ids[mask],
+        ant_pos=ant_pos,
+        ant_ids=ant_ids,
         azimuth_values=AZIMUTH_VALUES,
         zenith_precision=ZENITH_PRECISION,
         xmax_altitude=XMAX_ALTITUDE,
