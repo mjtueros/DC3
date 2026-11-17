@@ -13,7 +13,19 @@ from pathlib import Path
 import numpy as np
 from VisualsEventGenerator import (visualize_cores, visualize_distributions,visualize_xmax, visualize_xmaxfits)
 
-from shadow_with_plots import is_ant_occluded, plot_2d, plot_3d
+import pandas as pd
+from grand.geo.coordinates import Geodetic, GRANDCS
+from grand.geo.topography import Topography
+
+df1 = pd.read_csv("4-DC3EventGenerator/res_horizon/max_visible_zenith_1.csv")
+df1_dict = {(int(row.Antenna_ID), row.Azimuth): row.Max_Zenith for row in df1.itertuples(index=False)}
+azimuth_values = np.sort(df1["Azimuth"].unique())
+azimuth_step = 360 / len(azimuth_values)
+
+ORIGIN = Geodetic(latitude=40.98, longitude=93.95, height=0)
+topography = Topography()
+HEIGHT_ANTENNA = 3.0
+
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -80,26 +92,36 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
 
     return triggered_indices, amplitudes
 
+def get_ant_theta(xmax, pos):
+    direction = xmax - pos
+    lenght = np.linalg.norm(direction)
+    return np.degrees(np.arccos(direction[2] / lenght))
 
-def keep_visible_events(xmax, theta_deg, phi_deg, ant_pos, cone_angle, core_pos, min_trigger=3, debug=False, event_id=None):
+def get_ant_phi(xmax, pos):
+    direction = xmax - pos
+    return np.degrees(np.arctan2(direction[1], direction[0])) % 360
+
+def keep_visible_events(xmax, theta_deg, phi_deg, ant_pos, ant_ids, cone_angle, core_pos, min_trigger=3, debug=False, event_id=None):
     """
     Selects antennas inside the Cherenkov cone and removes
     those occulted by topography.
     """
 
     trig_try, amp_try = select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle)
-    print(f"nombre d'antennes à tester : {len(trig_try)}")
 
     visible_indices = []
     occulted_indices = []
     unknown_indices = []
 
     for idx in trig_try:
-        result = is_ant_occluded(ant_pos[idx], xmax)
-
-        if result is False:
+        azimuth_ant = round(round(get_ant_phi(xmax, ant_pos[idx]) / azimuth_step) * azimuth_step, 6) % 360
+        max_zenith = df1_dict.get((int(ant_ids[idx]), azimuth_ant))
+        if max_zenith is None:
+            raise RuntimeError(f"Missing Max_Zenith for antenna {ant_ids[idx]}, azimuth {azimuth_ant}°")
+        result = get_ant_theta(xmax, ant_pos[idx]) <= max_zenith
+        if result:
             visible_indices.append(idx)
-        elif result is True:
+        elif not result:
             occulted_indices.append(idx)
         else:
             unknown_indices.append(idx)
@@ -380,7 +402,7 @@ def main():
     antennas_csv = resolve_ini_path(
         config_file,
         sec.get(
-            "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"
+            "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions_Corrected.csv"
         ),
     )
     out_db = resolve_ini_path(
@@ -482,11 +504,13 @@ def main():
         reader = csv.DictReader(f)
         for row in reader:
             ant_ids.append(row["ID"])
+            ant_geo = GRANDCS(x=float(row["CS_X_North_m"]), y=float(row["CS_Y_West_m"]), z=0, location=ORIGIN)
+            ground_altitude = float(topography.elevation(ant_geo, "GEOID"))
             ant_pos_list.append(
                 [
                     float(row["CS_X_North_m"]),
                     float(row["CS_Y_West_m"]),
-                    float(row["CS_Z_Height_m"]),
+                    ground_altitude + 3,
                 ]
             )
     ant_pos = np.array(ant_pos_list)
@@ -581,12 +605,11 @@ def main():
             
             # Test cores_per_event core positions, without stopping at the first trigger (issue #47)
             for _ in range(cores_per_event):
-                print("testing a core")
                 core_try = rand_in_hex(center_pos, hex_size)
                 # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
-                trig_try, amp_try, hit = keep_visible_events(xmax_try, zenith, azimuth, ant_pos, cone_angle, core_pos=core_try, min_trigger=min_trigger, debug=False)
+                trig_try, amp_try, hit = keep_visible_events(xmax_try, zenith, azimuth, ant_pos, ant_ids, cone_angle, core_pos=core_try, min_trigger=min_trigger, debug=False)
     
                 tested_cores.append((core_try, hit))
                 if hit:
@@ -636,7 +659,7 @@ def main():
                                         Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, EventWeight, Tries , Triggers, NaturalRate_per_yr)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    unique_event_name, row['EventName'], row['EventWeight'], row['PrimaryType'], energy_GeV, zenith, azimuth, row['Model'],
+                    unique_event_name, row['ShowerName'], row['ShowerWeight'], row['PrimaryType'], energy_GeV, zenith, azimuth, row['Model'],
                     row['RandomSeed'], row['Xmax_g_cm2'], row['XmaxAltitude_km'], row['XmaxDistance_km'], core_pos[0], core_pos[1], core_pos[2],
                     xmax_pos[0], xmax_pos[1], xmax_pos[2], new_weight, cores_per_event,n_triggers, natural_rate
                 ))
