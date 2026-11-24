@@ -6,9 +6,16 @@ import numpy as np
 
 
 BASE_DIR = Path(__file__).resolve().parent
-FILE_NUMBER = 1  
+FILE_NUMBER = 7
 
-CSV_FILE = BASE_DIR / "res_horizon" / f"max_visible_zenith_{FILE_NUMBER}.csv"
+matches = list((BASE_DIR / "res_horizon").glob(f"max_visible_zenith_{FILE_NUMBER}_*.csv"))
+
+if len(matches) != 1:
+    raise FileNotFoundError(
+        f"Expected exactly one CSV for ID {FILE_NUMBER}, found: {matches}"
+    )
+
+CSV_FILE = matches[0]
 
 df = pd.read_csv(CSV_FILE)
 

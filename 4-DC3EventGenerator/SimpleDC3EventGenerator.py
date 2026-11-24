@@ -1,17 +1,18 @@
 import sys
-import os
 import configparser
 import csv
 import math
 import os
 import select
 import sqlite3
-import sys
 import time
 
 from pathlib import Path
 import numpy as np
 from VisualsEventGenerator import (visualize_cores, visualize_distributions,visualize_xmax, visualize_xmaxfits)
+
+import pandas as pd
+
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -77,6 +78,57 @@ def select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle):
         amplitudes[i] = (1.0 / (d_km**2 + 0.1)) * math.cos(math.radians(angle))
 
     return triggered_indices, amplitudes
+
+
+# ==============================================================================
+# TOPOGRAPHY SHADOW SELECTION ( Physics / Geometry )
+# ==============================================================================
+def get_azimuth_from_table(theta,azimuth_table):
+    idx_azimuth = np.argmin(np.abs(azimuth_table - theta))
+    return azimuth_table[idx_azimuth]
+
+def get_ant_theta(xmax, pos):
+    direction = xmax - pos
+    lenght = np.linalg.norm(direction)
+    return np.degrees(np.arccos(direction[2] / lenght))
+
+def get_ant_phi(xmax, pos):
+    direction = xmax - pos
+    return np.degrees(np.arctan2(direction[1], direction[0])) % 360
+
+def keep_visible_events(xmax, theta_deg, phi_deg, ant_pos, ant_ids, cone_angle, dict_horizon, azimuth_val, min_trigger=3):
+    """
+    Selects antennas inside the Cherenkov cone and removes
+    those occulted by topography.
+    """
+    trig_try, amp_try = select_cone(xmax, theta_deg, phi_deg, ant_pos, cone_angle)
+
+    visible_indices = []
+    occulted_indices = []
+
+
+    for idx in trig_try:
+        id = ant_ids[idx]
+        pos = ant_pos[idx]
+        azimuth_ant = get_azimuth_from_table(get_ant_phi(xmax, pos), azimuth_val)
+        max_zenith = dict_horizon.get((int(id), azimuth_ant))
+        if max_zenith is None:
+            raise ValueError(f"Missing Max_Zenith for antenna {id}, azimuth {azimuth_ant}°")
+        result = get_ant_theta(xmax, pos) <= max_zenith
+        if result:
+            visible_indices.append(idx)
+        elif not result:
+            occulted_indices.append(idx)
+
+    trig_visible = np.array(visible_indices, dtype=int)
+    occulted_indices = np.array(occulted_indices, dtype=int)
+
+    visible_mask = np.isin(trig_try, trig_visible)
+    amp_visible = amp_try[visible_mask]
+
+    hit = len(trig_visible) >= min_trigger
+    return trig_visible, amp_visible, hit, trig_try, occulted_indices
+
 
 # ==============================================================================
 # HEXAGON RANDOM SAMPLING
@@ -162,6 +214,7 @@ def init_database(db_path, run_settings=None):
             Core_N REAL,
             Core_W REAL,
             Triggered INTEGER,
+            Triggered_NoTopo INTEGER,
             FOREIGN KEY(EventID) REFERENCES Events(EventID)
         );
         CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
@@ -207,7 +260,7 @@ def append_problem(db_path, run_settings, showers_db):
     try:
         conn_in = sqlite3.connect(Path(showers_db).resolve().as_uri() + "?mode=ro", uri=True)
         try:
-            input_names = {name for (name,) in conn_in.execute("SELECT ShowerName FROM Showers")}
+            input_names = {name for (name,) in conn_in.execute("SELECT EventName FROM Showers")}
         finally:
             conn_in.close()
     except sqlite3.DatabaseError as exc:
@@ -217,8 +270,7 @@ def append_problem(db_path, run_settings, showers_db):
         return f"{len(foreign)} of its events are of showers that are not in the input database (first: {foreign[0]})"
     return None
 
-import time
-import select
+
 
 def resolve_ini_path(config_file_path, path_str):
     """
@@ -315,6 +367,25 @@ def main():
         sys.exit(1)
 
     sec = config["EventGenerator"]
+    
+    horizon_csv = resolve_ini_path(
+    config_file,
+    sec.get(
+        "horizon_csv"
+        ),
+    )
+
+    if not os.path.isfile(horizon_csv):
+        raise FileNotFoundError(f"Horizon CSV not found: {horizon_csv}")
+
+    df_horizon = pd.read_csv(horizon_csv)
+    dict_horizon = {
+        (int(row.Antenna_ID), row.Azimuth): row.Max_Zenith
+        for row in df_horizon.itertuples(index=False)
+    }
+
+    azimuth_values = np.sort(df_horizon["Azimuth"].unique())
+    
 
     showers_db = resolve_ini_path(
         config_file, sec.get("showers_db", fallback="ExampleFluxWithXmax.sqlite")
@@ -322,7 +393,7 @@ def main():
     antennas_csv = resolve_ini_path(
         config_file,
         sec.get(
-            "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions.csv"
+            "antennas_csv", fallback="4-DC3EventGenerator/GRAND_GP65_RTK_positions_Corrected.csv"
         ),
     )
     out_db = resolve_ini_path(
@@ -398,6 +469,7 @@ def main():
         "reuse": str(reuse),
         "dist_min": repr(dist_min),
         "dist_max": repr(dist_max),
+        "horizon_csv": os.path.relpath(horizon_csv, out_dir_abs),
     }
     # An existing output database is only changed if you say so (issue #51): overwrite it, append the events
     # that are not in it yet, or exit. A dry run writes no database, so it does not ask.
@@ -473,6 +545,7 @@ def main():
     cursor_in.execute("SELECT * FROM Showers")
     
     for i, row in enumerate(cursor_in.fetchall()):
+        print(f"PROCESSING OF EVENT {i}")
         if row['XmaxDistance_km'] is None:
             skipped_count += 1
             continue
@@ -486,7 +559,7 @@ def main():
         # Read parameters directly (Assuming GRAND coords already)
         zenith = float(row['Zenith_Deg'])
         azimuth = float(row['Azimuth_Deg'])
-        energy_GeV = float(row['Energy_GeV']) 
+        energy_GeV = float(row['Energy_GeV'])
         original_weight = float(row['ShowerWeight'])
         primary = str(row["PrimaryType"])
         # Showers per km^2 per year (see the FluxGenerator); empty in databases without it, e.g. rebuilt from a library
@@ -526,21 +599,19 @@ def main():
                 # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
-                trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
-                print(f"nombre d'antennes à tester : {len(trig_try)}")
-                
-                hit = len(trig_try) >= min_trigger
-                tested_cores.append((core_try, hit))
+                trig_try, amp_try, hit, trig_cone, occ_ind = keep_visible_events(xmax_try, zenith, azimuth, ant_pos, ant_ids, cone_angle, dict_horizon, azimuth_values, min_trigger=min_trigger)
+                hit_no_topo = len(trig_cone) >= min_trigger
+                tested_cores.append((core_try, hit, hit_no_topo))
                 if hit:
                     n_triggers += 1
                     if first_trigger is None:
-                        first_trigger = (core_try, xmax_try, trig_try, amp_try)
+                        first_trigger = (core_try, xmax_try, trig_try, amp_try, trig_cone, occ_ind)
 
             # Keep the first core that triggered: the cores are drawn uniformly, so it is a uniform draw from the
             # area where this shower triggers, as in nature. Without a trigger, keep the last core tested.
             triggered = first_trigger is not None
             if triggered:
-                core_pos, xmax_pos, trig_idx, amplitudes = first_trigger
+                core_pos, xmax_pos, trig_idx, amplitudes, trig_cone, occ_ind = first_trigger
                 success_count += 1
             else:
                 core_pos, xmax_pos = core_try, xmax_try
@@ -560,7 +631,7 @@ def main():
 
             # If dry run, save data for plots
             if dry_run:
-                plot_all_cores.extend(c for c, _ in tested_cores)
+                plot_all_cores.extend(c for c, _, _ in tested_cores)
                 if triggered:
                     plot_triggered_cores.append(core_pos)
                     out_primary.append(primary)
@@ -573,7 +644,6 @@ def main():
             # Save to Database
             if not dry_run:
 
-                
                 cursor.execute("""
                     INSERT INTO Events (EventName, ShowerName, ShowerWeight, PrimaryType, Energy_GeV, Zenith_Deg, Azimuth_Deg, Model, RandomSeed, Xmax_g_cm2, XmaxAltitude_km, XmaxDistance_km, 
                                         Core_N, Core_W, Core_U, Xmax_N, Xmax_W, Xmax_U, EventWeight, Tries , Triggers, NaturalRate_per_yr)
@@ -609,8 +679,8 @@ def main():
                     print(f"Event {unique_event_name}: {n_triggers} of {cores_per_event} cores triggered; the kept core has {len(trig_idx)} antennas.")
                 
                 # Always save tested cores, each with whether it triggered
-                core_inserts = [(event_id, c[0], c[1], int(hit)) for c, hit in tested_cores]
-                cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W, Triggered) VALUES (?, ?, ?, ?)", core_inserts)
+                core_inserts = [(event_id, c[0], c[1], int(hit), int(hit_no_topo)) for c, hit, hit_no_topo in tested_cores]
+                cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W, Triggered, Triggered_NoTopo) VALUES (?, ?, ?, ?, ?)", core_inserts)
                 conn.commit()
                 
     conn_in.close()
