@@ -42,11 +42,16 @@ Before using the RadioMorphing interpolator, users must ensure that:
 
 ## Installing RadioMorphing
 
-Clone the RadioMorphing repository:
+Clone the RadioMorphing repository (use the fork adapted for DC3):
 
 ```bash
-git clone <https://github.com/simonchiche/RadioMorphing.git>
+git clone https://github.com/mjtueros/RadioMorphing.git
 ```
+
+> **Note**: This fork (`mjtueros/RadioMorphing`, forked from `simonchiche/RadioMorphing`) contains improvements required by DC3:
+> - Geometric 4-antenna surrounding selection (`SelectAntennasForInterpolationIA`) and inner ring handling.
+> - Full Proton primary $X_{\max}$ parameterization in addition to Iron.
+> - Robust handling of zero-padded traces and clean multi-event execution.
 
 The RadioMorphing installation used during development relied on:
 
