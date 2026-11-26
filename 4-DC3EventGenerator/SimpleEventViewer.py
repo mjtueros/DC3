@@ -70,7 +70,7 @@ def view_events_interactively(db_path):
     print(f"Loading antennas from {antennas_csv}...")
     ant_ids, ant_pos_list = [], []
     with open(antennas_csv, mode="r") as f:
-        reader = csv.DictReader(f)
+        reader = csv.DictReader(filter(lambda r: not r.startswith("#"), f))
         for row in reader:
             ant_ids.append(row["ID"])
             ant_pos_list.append(
