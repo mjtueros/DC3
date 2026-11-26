@@ -18,6 +18,8 @@ import OutputDatabase
 import Hexagon
 import utils
 
+import RadioMorphinInterpolator.AntennaInterpolator as rmi
+
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
 # ==============================================================================
@@ -131,8 +133,21 @@ EVENT_TABLES_SQL = """
             Triggered INTEGER,
             FOREIGN KEY(EventID) REFERENCES Events(EventID)
         );
+        CREATE TABLE IF NOT EXISTS AntennaTraces (
+            EventID INTEGER,
+            AntennaID TEXT,
+            Rel_N REAL,
+            Rel_W REAL,
+            Rel_U REAL,
+            Time BLOB,
+            Ex BLOB,
+            Ey BLOB,
+            Ez BLOB,
+            FOREIGN KEY(EventID) REFERENCES Events(EventID)
+        );
         CREATE INDEX IF NOT EXISTS idx_tested_cores_event ON TestedCores(EventID);
         CREATE INDEX IF NOT EXISTS idx_triggered_ant_event ON TriggeredAntennas(EventID);
+        CREATE INDEX IF NOT EXISTS idx_antenna_traces_event ON AntennaTraces(EventID);
     """
 # Settings added after the first databases were written, with the value those were written with: hex_inner is
 # only recorded when it is not 0, so a database without it was written with the whole hexagon.
@@ -240,6 +255,25 @@ def main():
     EventSeed = sec.getint("EventSeed", fallback=np.random.randint(0, 2**31))
     np.random.seed(EventSeed)
 
+    Interpolator = sec.get("Interpolator", fallback="select_cone")
+    RadioMorphingPath = sec.get("PathToRadioMorphingInstallation")
+    threshold = sec.getfloat("threshold", fallback=12.0)
+
+    save_traces_raw = sec.get("save_traces", fallback="False").strip()
+    if save_traces_raw.lower() in ("true", "yes", "1", "all"):
+        save_traces = "all"
+    elif save_traces_raw.lower() in ("triggered", "trig"):
+        save_traces = "triggered"
+    elif save_traces_raw.lower() in ("false", "no", "0", "none", "off", ""):
+        save_traces = False
+    else:
+        print(f"ERROR: Unknown value for save_traces: '{save_traces_raw}'. Use True, False, 'all', or 'triggered'.")
+        sys.exit(1)
+
+    if save_traces and Interpolator != "RadioMorphing":
+        print(f"WARNING: save_traces is enabled but Interpolator is '{Interpolator}', which does not produce waveforms. Disabling save_traces.")
+        save_traces = False
+
     print("#########################################################")
     print(" Event Generator (Core Drop & Trigger Simulator)")
     print("#########################################################")
@@ -257,6 +291,10 @@ def main():
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
+    if Interpolator == "RadioMorphing":
+        print(f"Interpolator:    RadioMorphing (Threshold: {threshold} uV/m, Save Traces: {save_traces})")
+    else:
+        print(f"Interpolator:    select_cone")
     print("#########################################################")
 
     if not os.path.isfile(showers_db):
@@ -403,6 +441,7 @@ def main():
             tested_cores = []
             n_triggers = 0
             first_trigger = None
+            first_traces = None
             
             # Dry run stats (Input)
             if dry_run:
@@ -417,7 +456,29 @@ def main():
                 # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
-                trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
+
+                if Interpolator == "RadioMorphing":
+                    site_altitude = core_try[2] if core_try[2] > 500 else np.mean(ant_pos[:, 2])
+
+                    # RadioMorphing expects antenna position X Y centered on core position at ground level, and Z as ASL
+                    ant_pos_shifted = np.copy(ant_pos)
+                    ant_pos_shifted[:, 0] -= core_try[0]
+                    ant_pos_shifted[:, 1] -= core_try[1]
+
+                    # 1 EeV = 10^9 GeV (1e9)
+                    energy_EeV = energy_GeV / 1e9
+
+                    # Interpolation step
+                    Traces = rmi.AntennaInterpolator(RadioMorphingPath, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted)
+
+                    # Setting up the AntennaIds list
+                    AntennaIds = list(range(len(ant_pos)))
+
+                    # Simple trigger function, filter step hardcoded to False (off)
+                    trig_try, amp_try = rmi.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
+
+                elif Interpolator == "select_cone":
+                    trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
                 
                 hit = len(trig_try) >= min_trigger
                 tested_cores.append((core_try, hit))
@@ -425,6 +486,8 @@ def main():
                     n_triggers += 1
                     if first_trigger is None:
                         first_trigger = (core_try, xmax_try, trig_try, amp_try)
+                        if save_traces and Interpolator == "RadioMorphing":
+                            first_traces = Traces.copy()
 
             # Keep the first core that triggered: the cores are drawn uniformly, so it is a uniform draw from the
             # area where this shower triggers, as in nature. Without a trigger, keep the last core tested.
@@ -497,6 +560,37 @@ def main():
                         VALUES (?, ?, ?, ?, ?, ?)
                     """, ant_inserts)
                     print(f"Event {unique_event_name}: {n_triggers} of {cores_per_event} cores triggered; the kept core has {len(trig_idx)} antennas.")
+
+                    # Save interpolated antenna traces if enabled
+                    if save_traces and first_traces is not None:
+                        if save_traces == "triggered":
+                            ant_indices = trig_idx
+                        else:  # "all"
+                            ant_indices = range(len(ant_pos))
+
+                        trace_inserts = []
+                        for idx in ant_indices:
+                            rel_pos = ant_pos[idx] - core_pos
+                            # Store traces as float32 binary blobs (1999 float32 samples per channel)
+                            t_blob = sqlite3.Binary(np.ascontiguousarray(first_traces[idx, 0], dtype=np.float32).tobytes())
+                            ex_blob = sqlite3.Binary(np.ascontiguousarray(first_traces[idx, 1], dtype=np.float32).tobytes())
+                            ey_blob = sqlite3.Binary(np.ascontiguousarray(first_traces[idx, 2], dtype=np.float32).tobytes())
+                            ez_blob = sqlite3.Binary(np.ascontiguousarray(first_traces[idx, 3], dtype=np.float32).tobytes())
+                            trace_inserts.append((
+                                event_id,
+                                ant_ids[idx],
+                                float(rel_pos[0]),
+                                float(rel_pos[1]),
+                                float(rel_pos[2]),
+                                t_blob,
+                                ex_blob,
+                                ey_blob,
+                                ez_blob,
+                            ))
+                        cursor.executemany("""
+                            INSERT INTO AntennaTraces (EventID, AntennaID, Rel_N, Rel_W, Rel_U, Time, Ex, Ey, Ez)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, trace_inserts)
                 
                 # Always save tested cores, each with whether it triggered
                 core_inserts = [(event_id, c[0], c[1], int(hit)) for c, hit in tested_cores]
