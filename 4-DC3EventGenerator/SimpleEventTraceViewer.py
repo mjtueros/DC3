@@ -138,6 +138,8 @@ def plot_trace_comparison(trace_fig, ev_name, ant_id, rel_pos, interp_data, sim_
         # Align relative time axes: tau = t - t[0]
         tau_int = t_int - t_int[0]
         tau_sim = t_sim - t_sim[0]
+        print("t0 sim", t_sim[0])
+        print("t0 int", t_int[0])
 
         # Resample sim onto tau_int if lengths differ
         if len(tau_sim) != len(tau_int) or not np.allclose(tau_sim, tau_int):

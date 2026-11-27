@@ -19,6 +19,7 @@ import Hexagon
 import utils
 
 import RadioMorphinInterpolator.AntennaInterpolator as rmi
+import RadioMorphinInterpolator.AntennaInterpolator2 as rmi2
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -226,7 +227,7 @@ def main():
     
     center_n = sec.getfloat("center_n", fallback=0.0)
     center_w = sec.getfloat("center_w", fallback=0.0)
-    center_u = sec.getfloat("center_u", fallback=1250.0)
+    center_u = sec.getfloat("center_u", fallback=0.0)
     hex_size = sec.getfloat("hex_size", fallback=7000.0)
     # The cores can be drawn in a ring of the hexagon instead of the whole of it: outside the hexagon of size
     # hex_inner, with the same center and orientation. Libraries of rings that do not overlap make up a library
@@ -270,7 +271,7 @@ def main():
         print(f"ERROR: Unknown value for save_traces: '{save_traces_raw}'. Use True, False, 'all', or 'triggered'.")
         sys.exit(1)
 
-    if save_traces and Interpolator != "RadioMorphing":
+    if save_traces and Interpolator not in ("RadioMorphing", "RadioMorphing2"):
         print(f"WARNING: save_traces is enabled but Interpolator is '{Interpolator}', which does not produce waveforms. Disabling save_traces.")
         save_traces = False
 
@@ -291,11 +292,24 @@ def main():
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
-    if Interpolator == "RadioMorphing":
-        print(f"Interpolator:    RadioMorphing (Threshold: {threshold} uV/m, Save Traces: {save_traces})")
+    if Interpolator in ("RadioMorphing", "RadioMorphing2"):
+        print(f"Interpolator:    {Interpolator} (Threshold: {threshold} uV/m, Save Traces: {save_traces})")
     else:
         print(f"Interpolator:    select_cone")
     print("#########################################################")
+
+    rm2_library = None
+    if Interpolator == "RadioMorphing2":
+        lib_path = sec.get("PathToRadioMorphing2Library", fallback=None)
+        if lib_path:
+            lib_path = os.path.join(config_dir, lib_path) if not os.path.isabs(lib_path) else lib_path
+        elif RadioMorphingPath:
+            rm_abs = os.path.join(config_dir, RadioMorphingPath) if not os.path.isabs(RadioMorphingPath) else RadioMorphingPath
+            lib_path = os.path.join(rm_abs, "Simulations", "SelectedPlane")
+        trace_mode = sec.get("RadioMorphing2TraceMode", fallback="efield")
+        t_init_start = time.perf_counter()
+        rm2_library = rmi2.InitInterpolator(LibraryPath=lib_path, trace_mode=trace_mode)
+        print(f"RadioMorphing2 initialized ({rm2_library['n_planes']} planes, mode='{trace_mode}') in {time.perf_counter() - t_init_start:.2f} s.")
 
     if not os.path.isfile(showers_db):
         print(
@@ -457,25 +471,27 @@ def main():
                 # Core and antennas are both in the site CS, so Xmax is too.
                 xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
 
-                if Interpolator == "RadioMorphing":
-                    site_altitude = core_try[2] if core_try[2] > 500 else np.mean(ant_pos[:, 2])
+                if Interpolator in ("RadioMorphing", "RadioMorphing2"):
+                    site_altitude = 1231
 
                     # RadioMorphing expects antenna position X Y centered on core position at ground level, and Z as ASL
                     ant_pos_shifted = np.copy(ant_pos)
                     ant_pos_shifted[:, 0] -= core_try[0]
                     ant_pos_shifted[:, 1] -= core_try[1]
+                    ant_pos_shifted[:, 2] += site_altitude
 
                     # 1 EeV = 10^9 GeV (1e9)
                     energy_EeV = energy_GeV / 1e9
 
                     # Interpolation step
-                    Traces = rmi.AntennaInterpolator(RadioMorphingPath, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted)
-
-                    # Setting up the AntennaIds list
-                    AntennaIds = list(range(len(ant_pos)))
-
-                    # Simple trigger function, filter step hardcoded to False (off)
-                    trig_try, amp_try = rmi.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
+                    if Interpolator == "RadioMorphing":
+                        Traces = rmi.AntennaInterpolator(RadioMorphingPath, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted)
+                        AntennaIds = list(range(len(ant_pos)))
+                        trig_try, amp_try = rmi.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
+                    else:
+                        Traces = rmi2.AntennaInterpolator(rm2_library, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted, XmaxDistance_km=xmax_dist_km)
+                        AntennaIds = list(range(len(ant_pos)))
+                        trig_try, amp_try = rmi2.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
 
                 elif Interpolator == "select_cone":
                     trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
@@ -486,7 +502,7 @@ def main():
                     n_triggers += 1
                     if first_trigger is None:
                         first_trigger = (core_try, xmax_try, trig_try, amp_try)
-                        if save_traces and Interpolator == "RadioMorphing":
+                        if save_traces and Interpolator in ("RadioMorphing", "RadioMorphing2"):
                             first_traces = Traces.copy()
 
             # Keep the first core that triggered: the cores are drawn uniformly, so it is a uniform draw from the

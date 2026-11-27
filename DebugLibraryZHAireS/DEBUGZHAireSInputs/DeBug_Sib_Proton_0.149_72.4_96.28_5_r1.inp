@@ -2,9 +2,9 @@
 # ZHAireS Input File generated from SQLite Trigger Database
 # ShowerName        : DeBug_Sib_Proton_0.149_72.4_96.28_5
 # EventName         : DeBug_Sib_Proton_0.149_72.4_96.28_5_r1
-# EventWeight       : 1.300000e-01
-# CorePosition_NWU  : -927.76 4642.10 0.00
-# XmaxPosition_NWU  : -4064.11 33142.05 9073.27
+# EventWeight       : 5.000000e-02
+# CorePosition_NWU  : -1791.80 -743.81 0.00
+# XmaxPosition_NWU  : -4928.16 27756.15 9073.27
 # XmaxDistance_km   : 30.07
 ################################################################################
 
@@ -22,12 +22,16 @@ RandomSeed 0.961791170
 ####################################################################################
 # Antenna List created with CreateAntennaListInp v0.1                              #
 ####################################################################################
-AddAntenna 37      385.69    -2645.14       17.99
-AddAntenna 44     -118.49    -2363.35       25.64
-AddAntenna 78     -127.17    -1788.48       29.58
-AddAntenna 93      364.36     -913.35       27.13
-AddAntenna 102     -635.24     -938.19       42.15
-AddAntenna 116     -145.03      -56.52       39.10
+AddAntenna 12      267.46      998.25       21.85
+AddAntenna 16      261.84     1573.42       22.26
+AddAntenna 17      273.94      416.98       22.68
+AddAntenna 21      279.86     -158.39       22.72
+AddAntenna 24     -237.23     1279.52       31.76
+AddAntenna 25     -228.99      700.47       33.23
+AddAntenna 32     -241.75     1856.82       31.09
+AddAntenna 33     -220.87      121.97       32.87
+AddAntenna 41      285.24     -738.33       23.07
+AddAntenna 53     -216.24     -453.51       33.20
 ####################################################################################
 FresnelTime On
 ZHAireS On
@@ -38,12 +42,16 @@ ZHAireS On
 ####################################################################################
 # Expected amplitude at each antenna, from the EventGenerator (its mock model,     #
 # arbitrary units), for reference: AntennaID Amplitude                             #
-# 37 9.390881e-04
-# 44 9.579025e-04
-# 78 9.915306e-04
-# 93 1.042304e-03
-# 102 1.047301e-03
-# 116 1.103572e-03
+# 12 7.240758e+02
+# 16 1.599629e+02
+# 17 3.496031e+02
+# 21 2.503249e+02
+# 24 5.487035e+02
+# 25 2.291168e+02
+# 32 2.980724e+02
+# 33 2.063818e+02
+# 41 3.158461e+02
+# 53 2.960172e+02
 ####################################################################################
 
 ######################################################################################
@@ -66,14 +74,13 @@ PropagatePrimary On
 #Configure the site
 #------------------------------------------------------------------------------
 # Define a new site (note that the Ground Altitude will be overriden if the GroundAlitude directive is used)
-AddSite GP65NCS 40.96 deg 93.97 deg 1231.00 m
+AddSite Xiaodushan 40.99 deg 93.94 deg 1264.00 m
 # Select the new site
-Site GP65NCS
-#Seting the magnetic field (Values from IGRF 14 for the 2026 05 13, at 10km altitude, for 40.96 deg N  93.97 deg E)
-#
-GeomagneticField 56.466 uT 62.038 deg 0.053 deg
+Site Xiaodushan
+#Seting the magnetic field (if it is not set manually, it will look in IGRF13
+GeomagneticField 56.482 uT 61.6 deg 0.1253 deg
 #Setting the date is irrelevant if we manually set the Magnetic Field, but if not, is used to get the magnetic field for that date
-Date 2026 05 13
+Date 2022 10 26
 
 #Configure the atmosphere
 #------------------------------------------------------------------------------
@@ -143,7 +150,7 @@ CoREASOutput On
 #not a sample and hold logic.
 TimeDomainBin 0.50 ns
 #
-# Check Earth Shadow (default was Off on ZHAireS 1.0.30, but on 1.2 is On so i put it here)
+# Chack Earth Shadow (default was Off on ZHAireS 1.0.30, but now is on so i put it here)
 EarthShadow Off
 #
 End

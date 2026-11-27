@@ -23,7 +23,7 @@ def AntennaInterpolator(RadioMorphingPath, Primary, Energy, Zenith, Azimuth, Alt
     Azimuth : str or float
         Degrees (0 is propagation towards South, angle is counted positively counter-clockwised).
     Altitude : str or float
-        Altitude above sea level, in meters.
+        Site Altitude above sea level, in meters.
     Fluctuations : Boolean
         Boolean to enable or not shower-to-shower fluctations.
     AntennaPositions : array (N,3)
