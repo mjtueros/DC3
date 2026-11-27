@@ -157,7 +157,8 @@ def run_radiomorphing(
         amp_sub = np.abs(scaled_rfft_sub)
         phase_sub = np.angle(scaled_rfft_sub)
         pos_sims_angles_sub = pos_sims_angles[unique_ants]
-        t0_group = compute_antenna_t0(pos_des, xmax_pos, ref_plane["xmax_dist"])
+        target_xmax_dist = float(np.linalg.norm(xmax_pos - np.array([0.0, 0.0, glevel])))
+        t0_group = compute_antenna_t0(pos_des, xmax_pos, target_xmax_dist)
 
         for j, ant_idx, s1, s2, s3, s4 in quads:
             trace_xyz = interpolate_spectrum_2d(
@@ -172,9 +173,12 @@ def run_radiomorphing(
                 distanceratio=float(distanceratio[j]),
                 ntbins=ntbins,
             )
+            # Align trace start time with ZHAireS convention (t=0 when core hits ground;
+            # reference pulse peak sits ~250 ns into the 1000 ns trace window).
+            t_start = t0_group[j] - 250.0
             t_axis = np.linspace(
-                t0_group[j] + dt,
-                t0_group[j] + ntbins * dt,
+                t_start,
+                t_start + (ntbins - 1) * dt,
                 ntbins,
                 dtype=np.float64,
             )

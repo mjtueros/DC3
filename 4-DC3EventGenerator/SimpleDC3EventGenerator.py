@@ -3,6 +3,7 @@ import os
 import configparser
 import csv
 import math
+import multiprocessing as mp
 import os
 import select
 import sqlite3
@@ -20,6 +21,46 @@ import utils
 
 import RadioMorphinInterpolator.AntennaInterpolator as rmi
 import RadioMorphinInterpolator.AntennaInterpolator2 as rmi2
+
+# Global state shared read-only via Linux fork copy-on-write for RadioMorphing2 workers
+_MP_RM2_LIB = None
+_MP_ANT_POS = None
+
+
+def _rm2_worker(task):
+    """Worker function for parallel RadioMorphing2 core evaluation."""
+    (
+        core_idx,
+        core_try,
+        primary,
+        energy_EeV,
+        zenith,
+        azimuth,
+        site_altitude,
+        xmax_dist_km,
+        threshold,
+    ) = task
+    ant_pos_shifted = np.copy(_MP_ANT_POS)
+    ant_pos_shifted[:, 0] -= core_try[0]
+    ant_pos_shifted[:, 1] -= core_try[1]
+    ant_pos_shifted[:, 2] += site_altitude
+
+    traces = rmi2.AntennaInterpolator(
+        _MP_RM2_LIB,
+        primary,
+        energy_EeV,
+        zenith,
+        azimuth,
+        site_altitude,
+        False,
+        ant_pos_shifted,
+        XmaxDistance_km=xmax_dist_km,
+    )
+    ant_ids = list(range(len(_MP_ANT_POS)))
+    trig_try, amp_try = rmi2.TriggeredAntennas(
+        traces, ant_ids, threshold, Filter=False, Lowcut=30e6, Highcut=80e6, fs=2e9
+    )
+    return core_idx, trig_try, amp_try
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -259,6 +300,10 @@ def main():
     Interpolator = sec.get("Interpolator", fallback="select_cone")
     RadioMorphingPath = sec.get("PathToRadioMorphingInstallation")
     threshold = sec.getfloat("threshold", fallback=12.0)
+    n_workers = sec.getint("n_workers", fallback=1)
+    if n_workers < 1:
+        print(f"ERROR: n_workers must be >= 1, got {n_workers}.")
+        sys.exit(1)
 
     save_traces_raw = sec.get("save_traces", fallback="False").strip()
     if save_traces_raw.lower() in ("true", "yes", "1", "all"):
@@ -293,13 +338,18 @@ def main():
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
     print(f"Dry Run:         {dry_run}")
     if Interpolator in ("RadioMorphing", "RadioMorphing2"):
-        print(f"Interpolator:    {Interpolator} (Threshold: {threshold} uV/m, Save Traces: {save_traces})")
+        print(f"Interpolator:    {Interpolator} (Threshold: {threshold} uV/m, Save Traces: {save_traces}, Workers: {n_workers})")
     else:
         print(f"Interpolator:    select_cone")
     print("#########################################################")
 
     rm2_library = None
+    rm2_pool = None
     if Interpolator == "RadioMorphing2":
+        if n_workers > 1:
+            os.environ["OMP_NUM_THREADS"] = "1"
+            os.environ["OPENBLAS_NUM_THREADS"] = "1"
+            os.environ["MKL_NUM_THREADS"] = "1"
         lib_path = sec.get("PathToRadioMorphing2Library", fallback=None)
         if lib_path:
             lib_path = os.path.join(config_dir, lib_path) if not os.path.isabs(lib_path) else lib_path
@@ -375,6 +425,14 @@ def main():
                 ]
             )
     ant_pos = np.array(ant_pos_list)
+
+    if Interpolator == "RadioMorphing2" and n_workers > 1:
+        global _MP_RM2_LIB, _MP_ANT_POS
+        _MP_RM2_LIB = rm2_library
+        _MP_ANT_POS = ant_pos
+        mp_ctx = mp.get_context("fork")
+        rm2_pool = mp_ctx.Pool(processes=n_workers)
+        print(f"Started {n_workers} forked RadioMorphing2 worker processes.")
 
     # 2. INIT DATABASE
     if not dry_run:
@@ -464,46 +522,95 @@ def main():
                 in_egy.append(energy_GeV)
                 in_wgt.append(original_weight)
             
-            # Test cores_per_event core positions, without stopping at the first trigger (issue #47)
-            for _ in range(cores_per_event):
-                core_try = Hexagon.rand_in_ring(center_pos, hex_size, hex_inner)
-                # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
-                # Core and antennas are both in the site CS, so Xmax is too.
-                xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
+            # Pre-draw all core positions deterministically so serial and parallel runs match
+            core_tries = [
+                Hexagon.rand_in_ring(center_pos, hex_size, hex_inner)
+                for _ in range(cores_per_event)
+            ]
 
-                if Interpolator in ("RadioMorphing", "RadioMorphing2"):
-                    site_altitude = 1231
+            if Interpolator == "RadioMorphing2" and rm2_pool is not None:
+                site_altitude = 1231
+                energy_EeV = energy_GeV / 1e9
+                tasks = [
+                    (
+                        c_idx,
+                        core_try,
+                        primary,
+                        energy_EeV,
+                        zenith,
+                        azimuth,
+                        site_altitude,
+                        xmax_dist_km,
+                        threshold,
+                    )
+                    for c_idx, core_try in enumerate(core_tries)
+                ]
+                chunksize = max(1, cores_per_event // (n_workers * 2))
+                for c_idx, trig_try, amp_try in rm2_pool.map(_rm2_worker, tasks, chunksize=chunksize):
+                    core_try = core_tries[c_idx]
+                    xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
+                    hit = len(trig_try) >= min_trigger
+                    tested_cores.append((core_try, hit))
+                    if hit:
+                        n_triggers += 1
+                        if first_trigger is None:
+                            first_trigger = (core_try, xmax_try, trig_try, amp_try)
+                            if save_traces:
+                                ant_pos_shifted = np.copy(ant_pos)
+                                ant_pos_shifted[:, 0] -= core_try[0]
+                                ant_pos_shifted[:, 1] -= core_try[1]
+                                ant_pos_shifted[:, 2] += site_altitude
+                                first_traces = rmi2.AntennaInterpolator(
+                                    rm2_library,
+                                    primary,
+                                    energy_EeV,
+                                    zenith,
+                                    azimuth,
+                                    site_altitude,
+                                    False,
+                                    ant_pos_shifted,
+                                    XmaxDistance_km=xmax_dist_km,
+                                )
+            else:
+                # Test cores_per_event core positions, without stopping at the first trigger (issue #47)
+                for core_try in core_tries:
+                    # k_vector points to where the shower comes from, so Xmax is xmax_dist up the axis from the core.
+                    # Core and antennas are both in the site CS, so Xmax is too.
+                    xmax_try = core_try + (xmax_dist_km * 1000.0 * k_vector)
 
-                    # RadioMorphing expects antenna position X Y centered on core position at ground level, and Z as ASL
-                    ant_pos_shifted = np.copy(ant_pos)
-                    ant_pos_shifted[:, 0] -= core_try[0]
-                    ant_pos_shifted[:, 1] -= core_try[1]
-                    ant_pos_shifted[:, 2] += site_altitude
+                    if Interpolator in ("RadioMorphing", "RadioMorphing2"):
+                        site_altitude = 1231
 
-                    # 1 EeV = 10^9 GeV (1e9)
-                    energy_EeV = energy_GeV / 1e9
+                        # RadioMorphing expects antenna position X Y centered on core position at ground level, and Z as ASL
+                        ant_pos_shifted = np.copy(ant_pos)
+                        ant_pos_shifted[:, 0] -= core_try[0]
+                        ant_pos_shifted[:, 1] -= core_try[1]
+                        ant_pos_shifted[:, 2] += site_altitude
 
-                    # Interpolation step
-                    if Interpolator == "RadioMorphing":
-                        Traces = rmi.AntennaInterpolator(RadioMorphingPath, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted)
-                        AntennaIds = list(range(len(ant_pos)))
-                        trig_try, amp_try = rmi.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
-                    else:
-                        Traces = rmi2.AntennaInterpolator(rm2_library, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted, XmaxDistance_km=xmax_dist_km)
-                        AntennaIds = list(range(len(ant_pos)))
-                        trig_try, amp_try = rmi2.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
+                        # 1 EeV = 10^9 GeV (1e9)
+                        energy_EeV = energy_GeV / 1e9
 
-                elif Interpolator == "select_cone":
-                    trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
-                
-                hit = len(trig_try) >= min_trigger
-                tested_cores.append((core_try, hit))
-                if hit:
-                    n_triggers += 1
-                    if first_trigger is None:
-                        first_trigger = (core_try, xmax_try, trig_try, amp_try)
-                        if save_traces and Interpolator in ("RadioMorphing", "RadioMorphing2"):
-                            first_traces = Traces.copy()
+                        # Interpolation step
+                        if Interpolator == "RadioMorphing":
+                            Traces = rmi.AntennaInterpolator(RadioMorphingPath, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted)
+                            AntennaIds = list(range(len(ant_pos)))
+                            trig_try, amp_try = rmi.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
+                        else:
+                            Traces = rmi2.AntennaInterpolator(rm2_library, primary, energy_EeV, zenith, azimuth, site_altitude, False, ant_pos_shifted, XmaxDistance_km=xmax_dist_km)
+                            AntennaIds = list(range(len(ant_pos)))
+                            trig_try, amp_try = rmi2.TriggeredAntennas(Traces, AntennaIds, threshold, Filter = False, Lowcut = 30e6, Highcut = 80e6, fs = 2e9)
+
+                    elif Interpolator == "select_cone":
+                        trig_try, amp_try = select_cone(xmax_try, zenith, azimuth, ant_pos, cone_angle)
+                    
+                    hit = len(trig_try) >= min_trigger
+                    tested_cores.append((core_try, hit))
+                    if hit:
+                        n_triggers += 1
+                        if first_trigger is None:
+                            first_trigger = (core_try, xmax_try, trig_try, amp_try)
+                            if save_traces and Interpolator in ("RadioMorphing", "RadioMorphing2"):
+                                first_traces = Traces.copy()
 
             # Keep the first core that triggered: the cores are drawn uniformly, so it is a uniform draw from the
             # area where this shower triggers, as in nature. Without a trigger, keep the last core tested.
@@ -613,6 +720,10 @@ def main():
                 cursor.executemany("INSERT INTO TestedCores (EventID, Core_N, Core_W, Triggered) VALUES (?, ?, ?, ?)", core_inserts)
                 conn.commit()
                 
+    if rm2_pool is not None:
+        rm2_pool.close()
+        rm2_pool.join()
+
     conn_in.close()
     print(f"\n{success_count} of {event_count} events triggered ({cores_per_event} cores tested per shower).")
     if skipped_count:

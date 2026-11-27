@@ -401,10 +401,31 @@ def view_events_interactively(db_path, sim_dir=None):
             norm = (amp - amp_min) / (amp_max - amp_min) if amp_max > amp_min else np.ones_like(amp) * 0.5
             marker_sizes = (5.0 + 25 * norm) ** 2
 
+            color_vals = amp
+            cbar_label = 'Amplitude (µV/m)'
+            cmap_name = 'viridis'
+            if has_traces_table:
+                t_map = {}
+                for t_row in cursor.execute(
+                    "SELECT AntennaID, Time, Ex, Ey, Ez FROM AntennaTraces WHERE EventID=?",
+                    (eventid,),
+                ).fetchall():
+                    t_arr = np.frombuffer(t_row[1], dtype=np.float32)
+                    ex_arr = np.frombuffer(t_row[2], dtype=np.float32)
+                    ey_arr = np.frombuffer(t_row[3], dtype=np.float32)
+                    ez_arr = np.frombuffer(t_row[4], dtype=np.float32)
+                    if len(t_arr) > 0:
+                        idx_pk = int(np.argmax(ex_arr**2 + ey_arr**2 + ez_arr**2))
+                        t_map[str(t_row[0])] = float(t_arr[idx_pk])
+                if all(str(aid) in t_map for aid in trig_ids):
+                    color_vals = np.array([t_map[str(aid)] for aid in trig_ids], dtype=float)
+                    cbar_label = 'Peak Arrival Time (ns)'
+                    cmap_name = 'plasma'
+
             sc = ax.scatter(
                 antenna_n, antenna_w,
-                c=amp,
-                cmap='viridis',
+                c=color_vals,
+                cmap=cmap_name,
                 s=marker_sizes,
                 marker='o',
                 edgecolors='black',
@@ -412,7 +433,7 @@ def view_events_interactively(db_path, sim_dir=None):
                 zorder=3,
                 label='Triggered Antennas'
             )
-            fig.colorbar(sc, cax=cax, label='Amplitude (µV/m)')
+            fig.colorbar(sc, cax=cax, label=cbar_label)
 
             for ant_id, a_n, a_w in zip(trig_ids, antenna_n, antenna_w):
                 ax.annotate(

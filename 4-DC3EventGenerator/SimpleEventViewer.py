@@ -199,17 +199,42 @@ def view_events_interactively(db_path):
             # If you literally want `s` in [1, 5], remove `** 2` (and consider multiplying by a scale factor if too small).
             marker_sizes = (5.0 + 25 * norm) ** 2
 
+            # Fetch peak arrival times from AntennaTraces if available
+            color_vals = amp
+            cbar_label = 'Amplitude'
+            cmap_name = 'viridis'
+            has_traces_tbl = cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='AntennaTraces'"
+            ).fetchone()
+            if has_traces_tbl:
+                t_map = {}
+                for t_row in cursor.execute(
+                    "SELECT AntennaID, Time, Ex, Ey, Ez FROM AntennaTraces WHERE EventID=?",
+                    (eventid,),
+                ).fetchall():
+                    t_arr = np.frombuffer(t_row[1], dtype=np.float32)
+                    ex_arr = np.frombuffer(t_row[2], dtype=np.float32)
+                    ey_arr = np.frombuffer(t_row[3], dtype=np.float32)
+                    ez_arr = np.frombuffer(t_row[4], dtype=np.float32)
+                    if len(t_arr) > 0:
+                        idx_pk = int(np.argmax(ex_arr**2 + ey_arr**2 + ez_arr**2))
+                        t_map[str(t_row[0])] = float(t_arr[idx_pk])
+                if all(str(aid) in t_map for aid in ant_ids):
+                    color_vals = np.array([t_map[str(aid)] for aid in ant_ids], dtype=float)
+                    cbar_label = 'Peak Arrival Time (ns)'
+                    cmap_name = 'plasma'
+
             sc = ax.scatter(
                 antenna_n, antenna_w,
-                c=amp,
-                cmap='viridis',      # Try 'plasma' or 'inferno' if you prefer
+                c=color_vals,
+                cmap=cmap_name,
                 s=marker_sizes,
                 marker='o',          # 'o' shows fill colors better than '.' at small sizes
                 edgecolors='black',
                 linewidths=0.4,
                 zorder=3
             )
-            cbar = fig.colorbar(sc, cax=cax, label='Amplitude')
+            cbar = fig.colorbar(sc, cax=cax, label=cbar_label)
 
 
             # Label each antenna at a 45° offset (equal dx, dy in display points)
