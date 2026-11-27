@@ -71,7 +71,6 @@ def AntennaInterpolator(
     Altitude: float,
     Fluctuations: bool,
     AntennaPositions: np.ndarray,
-    XmaxDistance_km: Optional[float] = None,
 ) -> np.ndarray:
     """
     Compute interpolated radio traces at target antenna positions using
@@ -114,7 +113,6 @@ def AntennaInterpolator(
         "injection": 1e6,
         "altitude": float(Altitude),
         "fluctuations": bool(Fluctuations),
-        "xmax_distance_km": XmaxDistance_km,
     }
     return run_radiomorphing(rm_library, target_shower, AntennaPositions)
 

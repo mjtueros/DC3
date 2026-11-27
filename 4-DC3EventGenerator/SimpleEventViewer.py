@@ -1,4 +1,5 @@
 import sqlite3
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -82,10 +83,16 @@ def view_events_interactively(db_path):
             )
         ant_pos = np.array(ant_pos_list)
         
-    # Read cone_angle from RunSettings
-    cursor.execute("SELECT Value FROM RunSettings WHERE Name = ?",("cone_angle",))
+    # Read cone_angle and hexagon geometry from RunSettings
+    cursor.execute("SELECT Value FROM RunSettings WHERE Name = ?", ("cone_angle",))
     row = cursor.fetchone()
-    cone_angle_deg = float(row[0]) if row else None            
+    cone_angle_deg = float(row[0]) if row else None
+
+    rs_map = dict(cursor.execute("SELECT Name, Value FROM RunSettings").fetchall())
+    hex_size = float(rs_map["hex_size"]) if "hex_size" in rs_map else None
+    hex_inner = float(rs_map.get("hex_inner", 0.0))
+    center_n = float(rs_map.get("center_n", 0.0))
+    center_w = float(rs_map.get("center_w", 0.0))
 
     # 2. Query only events that successfully triggered (Weight > 0)
     # We also grab the kept Core_N and Core_W to highlight them
@@ -135,6 +142,21 @@ def view_events_interactively(db_path):
         # Plot the tested cores: grey if they did not trigger, blue if they did
         ax.scatter(miss_n, miss_w, c='gray', s=15, alpha=0.5, label='Tested Cores')
         ax.scatter(hit_n, hit_w, c='tab:blue', s=15, alpha=0.7, label='Tested Cores that Triggered')
+
+        # Plot sampling hexagon contour
+        if hex_size is not None:
+            angles = np.deg2rad(np.array([0, 60, 120, 180, 240, 300, 0], dtype=float))
+            ax.plot(
+                center_n + hex_size * np.cos(angles),
+                center_w + hex_size * np.sin(angles),
+                color='darkgreen', linestyle='--', linewidth=1.2, label='Sampling Hexagon'
+            )
+            if hex_inner > 0.0:
+                ax.plot(
+                    center_n + hex_inner * np.cos(angles),
+                    center_w + hex_inner * np.sin(angles),
+                    color='darkgreen', linestyle=':', linewidth=1.0
+                )
     
         #Plot the antenna positions
         ax.scatter(ant_pos[:,0], ant_pos[:,1], c='red', s=25,marker="o",edgecolors='black', alpha=1)        
@@ -210,7 +232,7 @@ def view_events_interactively(db_path):
                 t_map = {}
                 for t_row in cursor.execute(
                     "SELECT AntennaID, Time, Ex, Ey, Ez FROM AntennaTraces WHERE EventID=?",
-                    (eventid,),
+                    (ev_id,),
                 ).fetchall():
                     t_arr = np.frombuffer(t_row[1], dtype=np.float32)
                     ex_arr = np.frombuffer(t_row[2], dtype=np.float32)
@@ -286,17 +308,27 @@ def view_events_interactively(db_path):
         ax.legend()
         
         # Draw the updated frame
-        plt.draw()
+        fig.canvas.draw_idle()
+        plt.show(block=False)
         print(f"Showing event {i+1}... Press any key on the plot to advance.")
-        
-        # Wait for the user to press a key (or click). 
-        # Returns None if the user manually closes the window.
-        try:
-            if plt.waitforbuttonpress() is None:
-                print("\nPlot window closed by user. Exiting.")
+
+        advance_event = False
+
+        def handle_key(event):
+            nonlocal advance_event
+            advance_event = True
+
+        key_cid = fig.canvas.mpl_connect('key_press_event', handle_key)
+        user_quit = False
+        while not advance_event:
+            if not plt.fignum_exists(fig.number):
+                user_quit = True
                 break
-        except Exception:
-            # Handles the window being closed unexpectedly
+            plt.pause(0.05)
+
+        fig.canvas.mpl_disconnect(key_cid)
+        if user_quit:
+            print("\nPlot window closed by user. Exiting.")
             break
 
     # 5. Clean up

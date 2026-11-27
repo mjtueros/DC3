@@ -7,6 +7,7 @@ import os
 import sys
 import glob
 import configparser
+import time
 
 
 def cone_ground_intersection(xmax, core, cone_angle_deg, num_pts=361):
@@ -293,10 +294,16 @@ def view_events_interactively(db_path, sim_dir=None):
             )
     ant_pos = np.array(ant_pos_list)
 
-    # Read cone_angle from RunSettings
+    # Read cone_angle and hexagon geometry from RunSettings
     cursor.execute("SELECT Value FROM RunSettings WHERE Name = ?", ("cone_angle",))
     row = cursor.fetchone()
     cone_angle_deg = float(row[0]) if row else None
+
+    rs_map = dict(cursor.execute("SELECT Name, Value FROM RunSettings").fetchall())
+    hex_size = float(rs_map["hex_size"]) if "hex_size" in rs_map else None
+    hex_inner = float(rs_map.get("hex_inner", 0.0))
+    center_n = float(rs_map.get("center_n", 0.0))
+    center_w = float(rs_map.get("center_w", 0.0))
 
     # 2. Query triggered events
     cursor.execute("""
@@ -355,6 +362,21 @@ def view_events_interactively(db_path, sim_dir=None):
         ax.scatter(miss_n, miss_w, c='gray', s=15, alpha=0.5, label='Tested Cores')
         ax.scatter(hit_n, hit_w, c='tab:blue', s=15, alpha=0.7, label='Tested Cores that Triggered')
 
+        # Plot sampling hexagon contour
+        if hex_size is not None:
+            angles = np.deg2rad(np.array([0, 60, 120, 180, 240, 300, 0], dtype=float))
+            ax.plot(
+                center_n + hex_size * np.cos(angles),
+                center_w + hex_size * np.sin(angles),
+                color='darkgreen', linestyle='--', linewidth=1.2, label='Sampling Hexagon'
+            )
+            if hex_inner > 0.0:
+                ax.plot(
+                    center_n + hex_inner * np.cos(angles),
+                    center_w + hex_inner * np.sin(angles),
+                    color='darkgreen', linestyle=':', linewidth=1.0
+                )
+
         # Plot all antennas as red dots
         ax.scatter(ant_pos[:, 0], ant_pos[:, 1], c='red', s=25, marker="o", edgecolors='black', alpha=0.8, label='All Antennas')
 
@@ -408,7 +430,7 @@ def view_events_interactively(db_path, sim_dir=None):
                 t_map = {}
                 for t_row in cursor.execute(
                     "SELECT AntennaID, Time, Ex, Ey, Ez FROM AntennaTraces WHERE EventID=?",
-                    (eventid,),
+                    (ev_id,),
                 ).fetchall():
                     t_arr = np.frombuffer(t_row[1], dtype=np.float32)
                     ex_arr = np.frombuffer(t_row[2], dtype=np.float32)
@@ -490,8 +512,15 @@ def view_events_interactively(db_path, sim_dir=None):
         print("  -> Press any key on the map window to advance to the next event.")
 
         # Interactive click handler
+        advance_event = False
+        trace_key_cid = None
+
+        def handle_key(event):
+            nonlocal advance_event
+            advance_event = True
+
         def handle_click(event):
-            nonlocal trace_fig
+            nonlocal trace_fig, trace_key_cid
             if event.inaxes != ax or event.xdata is None or event.ydata is None:
                 return
 
@@ -540,35 +569,35 @@ def view_events_interactively(db_path, sim_dir=None):
                     else:
                         print(f"  [Info] No simulated trace found in {sim_dir} for Antenna {clicked_id}.")
 
-                # 3. Open or update trace comparison figure
+                # 3. Open or update trace comparison figure (without raising/stealing focus)
                 if trace_fig is None or not plt.fignum_exists(trace_fig.number):
                     trace_fig = plt.figure(figsize=(12, 7.5))
+                    trace_key_cid = trace_fig.canvas.mpl_connect('key_press_event', handle_key)
                 plot_trace_comparison(trace_fig, ev_name, clicked_id, rel_pos, interp_data, sim_data)
-                plt.show(block=False)
+                trace_fig.canvas.draw_idle()
 
         cid = fig.canvas.mpl_connect('button_press_event', handle_click)
+        key_cid = fig.canvas.mpl_connect('key_press_event', handle_key)
+        if trace_fig is not None and plt.fignum_exists(trace_fig.number):
+            trace_key_cid = trace_fig.canvas.mpl_connect('key_press_event', handle_key)
 
-        # Loop on current event: mouse clicks show traces, key press advances to next event
+        fig.canvas.draw_idle()
+
+        # Loop on current event without plt.pause() (which raises/flickers windows)
         user_quit = False
-        while True:
-            try:
-                pressed = plt.waitforbuttonpress()
-            except Exception:
+        while not advance_event:
+            if not plt.fignum_exists(fig.number):
                 user_quit = True
                 break
-
-            if pressed is None:
-                # Window closed by user
-                user_quit = True
-                break
-            elif pressed is True:
-                # Key pressed -> advance to next event
-                break
-            else:
-                # Mouse clicked -> handle_click was called; keep waiting on current event
-                continue
+            fig.canvas.flush_events()
+            if trace_fig is not None and plt.fignum_exists(trace_fig.number):
+                trace_fig.canvas.flush_events()
+            time.sleep(0.03)
 
         fig.canvas.mpl_disconnect(cid)
+        fig.canvas.mpl_disconnect(key_cid)
+        if trace_key_cid is not None and trace_fig is not None and plt.fignum_exists(trace_fig.number):
+            trace_fig.canvas.mpl_disconnect(trace_key_cid)
 
         if user_quit:
             print("\nViewer window closed by user. Exiting.")

@@ -10,9 +10,10 @@ Generates:
 
 import argparse
 import csv
+import math
 import os
 import sqlite3
-from typing import Tuple
+from typing import Optional, Tuple
 
 import matplotlib
 matplotlib.use("Agg")
@@ -34,9 +35,11 @@ def load_antenna_positions(csv_path: str) -> Tuple[np.ndarray, np.ndarray]:
     return np.asarray(ant_w, dtype=np.float64), np.asarray(ant_n, dtype=np.float64)
 
 
-def load_tested_cores(db_path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+def load_tested_cores(
+    db_path: str,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
     """
-    Load all tested core positions and parent shower parameters from ``db_path``.
+    Load all tested core positions, parent shower parameters, and weights from ``db_path``.
 
     Returns
     -------
@@ -50,6 +53,12 @@ def load_tested_cores(db_path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
         Shower zenith angle in degrees.
     azimuth_deg : np.ndarray
         Shower azimuth angle in degrees.
+    shower_weight : np.ndarray
+        Pre-trigger shower weight (``ShowerWeight``).
+    event_id : np.ndarray (int)
+        EventID for grouping cores by shower.
+    area_km2 : float
+        Sampled hexagon/ring area in km^2 from ``RunSettings``.
     """
     if not os.path.isfile(db_path):
         raise FileNotFoundError(f"SQLite database not found: '{db_path}'")
@@ -58,15 +67,21 @@ def load_tested_cores(db_path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
     rows = conn.execute(
         """
         SELECT t.Core_N, t.Core_W, t.Triggered,
-               e.Energy_GeV / 1e9 AS Energy_EeV, e.Zenith_Deg, e.Azimuth_Deg
+               e.Energy_GeV / 1e9 AS Energy_EeV, e.Zenith_Deg, e.Azimuth_Deg,
+               e.ShowerWeight, e.EventID
         FROM TestedCores t
         JOIN Events e ON t.EventID = e.EventID
         """
     ).fetchall()
+    rs_map = dict(conn.execute("SELECT Name, Value FROM RunSettings").fetchall())
     conn.close()
 
     if not rows:
         raise RuntimeError(f"No rows found in TestedCores joined with Events in '{db_path}'.")
+
+    hex_size = float(rs_map.get("hex_size", 7000.0))
+    hex_inner = float(rs_map.get("hex_inner", 0.0))
+    area_km2 = 1.5 * math.sqrt(3.0) * ((hex_size / 1000.0) ** 2 - (hex_inner / 1000.0) ** 2)
 
     arr = np.asarray(rows, dtype=np.float64)
     return (
@@ -76,7 +91,56 @@ def load_tested_cores(db_path: str) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
         arr[:, 3],
         arr[:, 4],
         arr[:, 5],
+        arr[:, 6],
+        arr[:, 7].astype(np.int64),
+        area_km2,
     )
+
+
+def wilson_half_width(k: np.ndarray, n: np.ndarray, z: float = 1.0) -> np.ndarray:
+    """
+    Compute the 68% CL (z=1) Wilson score interval half-width in percent (0-100).
+
+    Returns ``NaN`` where ``n <= 0``.
+    """
+    hw = np.full_like(n, np.nan, dtype=np.float64)
+    valid = n > 0
+    nv = n[valid]
+    pv = np.clip(k[valid] / nv, 0.0, 1.0)
+    z2 = z * z
+    denom = 1.0 + z2 / nv
+    rad = z * np.sqrt(pv * (1.0 - pv) / nv + z2 / (4.0 * nv * nv))
+    hw[valid] = 100.0 * (rad / denom)
+    return hw
+
+
+def compute_weighted_efficiency_and_error(
+    x: np.ndarray,
+    y: np.ndarray,
+    triggered: np.ndarray,
+    weights: np.ndarray,
+    x_edges: np.ndarray,
+    y_edges: np.ndarray,
+    z: float = 1.0,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Compute weighted 2D trigger efficiency (%), Kish effective sample size
+    ``N_eff``, and Wilson score half-width (%) per spatial bin.
+    """
+    trig_f = triggered.astype(np.float64)
+    sum_w, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges], weights=weights)
+    sum_w_trig, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges], weights=weights * trig_f)
+    sum_w2, _, _ = np.histogram2d(x, y, bins=[x_edges, y_edges], weights=weights * weights)
+
+    eff_w = np.full_like(sum_w, np.nan, dtype=np.float64)
+    n_eff = np.zeros_like(sum_w, dtype=np.float64)
+    valid = (sum_w > 0) & (sum_w2 > 0)
+    eff_w[valid] = 100.0 * (sum_w_trig[valid] / sum_w[valid])
+    n_eff[valid] = (sum_w[valid] ** 2) / sum_w2[valid]
+
+    k_eff = (eff_w / 100.0) * n_eff
+    err_w = wilson_half_width(k_eff, n_eff, z=z)
+    return eff_w, err_w, n_eff
 
 
 def compute_efficiency_map(
@@ -457,6 +521,180 @@ def plot_core_counts(
     print(f"Saved: {out_path}")
 
 
+def plot_unweighted_error_map(
+    core_w: np.ndarray,
+    core_n: np.ndarray,
+    triggered: np.ndarray,
+    x_edges: np.ndarray,
+    y_edges: np.ndarray,
+    ant_w: np.ndarray,
+    ant_n: np.ndarray,
+    out_path: str,
+) -> None:
+    """Plot 2D Wilson score 68% CL uncertainty map (%) for unweighted trigger efficiency."""
+    total_counts, _, _ = np.histogram2d(core_w, core_n, bins=[x_edges, y_edges])
+    trig_counts, _, _ = np.histogram2d(
+        core_w[triggered], core_n[triggered], bins=[x_edges, y_edges]
+    )
+    err_pct = wilson_half_width(trig_counts, total_counts, z=1.0)
+
+    cmap = plt.get_cmap("magma_r").copy()
+    cmap.set_bad(color="white")
+    vmax = min(50.0, float(np.nanmax(err_pct)) * 1.05) if np.any(~np.isnan(err_pct)) else 50.0
+
+    fig, ax = plt.subplots(figsize=(8.5, 7.5))
+    mesh = ax.pcolormesh(
+        x_edges, y_edges, err_pct.T, cmap=cmap, vmin=0.0, vmax=vmax, shading="flat"
+    )
+    ax.scatter(
+        ant_w, ant_n, s=22, marker="^", facecolor="white", edgecolor="black",
+        linewidth=0.7, label=f"Array Antennas ({len(ant_w)})", zorder=4
+    )
+    fig.colorbar(mesh, ax=ax, label="Wilson 68% CL Uncertainty (±%)")
+    ax.set_aspect("equal")
+    ax.set_xlabel("Core Westing (m)")
+    ax.set_ylabel("Core Northing (m)")
+    ax.set_title("Spatial Efficiency Uncertainty Map (68% CL Wilson Score)")
+    ax.legend(loc="upper right", fontsize=9)
+    ax.grid(True, linestyle="--", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out_path}")
+
+
+def plot_weighted_efficiency_and_error(
+    core_w: np.ndarray,
+    core_n: np.ndarray,
+    triggered: np.ndarray,
+    weights: np.ndarray,
+    x_edges: np.ndarray,
+    y_edges: np.ndarray,
+    ant_w: np.ndarray,
+    ant_n: np.ndarray,
+    out_path: str,
+) -> None:
+    """Plot 2D weighted trigger efficiency (%) and Kish+Wilson uncertainty (%) side by side."""
+    eff_w, err_w, _ = compute_weighted_efficiency_and_error(
+        core_w, core_n, triggered, weights, x_edges, y_edges, z=1.0
+    )
+
+    fig, axes = plt.subplots(1, 2, figsize=(14.5, 6.5), sharex=True, sharey=True)
+    cmap_eff = plt.get_cmap("viridis").copy()
+    cmap_eff.set_bad(color="white")
+    cmap_err = plt.get_cmap("magma_r").copy()
+    cmap_err.set_bad(color="white")
+
+    m1 = axes[0].pcolormesh(x_edges, y_edges, eff_w.T, cmap=cmap_eff, vmin=0.0, vmax=100.0, shading="flat")
+    fig.colorbar(m1, ax=axes[0], label="Weighted Trigger Efficiency (%)")
+    axes[0].set_title("Shower-Weighted Trigger Efficiency")
+
+    vmax_e = min(50.0, float(np.nanmax(err_w)) * 1.05) if np.any(~np.isnan(err_w)) else 50.0
+    m2 = axes[1].pcolormesh(x_edges, y_edges, err_w.T, cmap=cmap_err, vmin=0.0, vmax=vmax_e, shading="flat")
+    fig.colorbar(m2, ax=axes[1], label="Kish + Wilson 68% CL Uncertainty (±%)")
+    axes[1].set_title("Weighted Efficiency Uncertainty (Kish N_eff)")
+
+    for ax in axes:
+        ax.scatter(
+            ant_w, ant_n, s=16, marker="^", facecolor="white", edgecolor="black",
+            linewidth=0.6, zorder=4
+        )
+        ax.set_aspect("equal")
+        ax.set_xlabel("Core Westing (m)")
+        ax.grid(True, linestyle="--", alpha=0.3)
+    axes[0].set_ylabel("Core Northing (m)")
+
+    fig.suptitle("Weighted Spatial Trigger Efficiency & Uncertainty", fontsize=14)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out_path}")
+
+
+def plot_effective_area(
+    triggered: np.ndarray,
+    energy_eev: np.ndarray,
+    zenith_deg: np.ndarray,
+    shower_weight: np.ndarray,
+    event_id: np.ndarray,
+    area_km2: float,
+    out_path: str,
+) -> None:
+    """
+    Compute and plot Effective Area A_eff (km^2) vs Energy, decomposing total
+    uncertainty into core-sampling variance and shower-to-shower variance.
+    """
+    unique_ev = np.unique(event_id)
+    ev_e, ev_z, ev_w, ev_p, ev_n = [], [], [], [], []
+    for eid in unique_ev:
+        m = event_id == eid
+        ev_e.append(float(energy_eev[m][0]))
+        ev_z.append(float(zenith_deg[m][0]))
+        ev_w.append(float(shower_weight[m][0]))
+        ev_p.append(float(np.mean(triggered[m])))
+        ev_n.append(int(np.sum(m)))
+
+    ev_e = np.asarray(ev_e)
+    ev_w = np.asarray(ev_w)
+    ev_p = np.asarray(ev_p)
+    ev_n = np.asarray(ev_n, dtype=np.float64)
+
+    e_edges = _bin_edges(ev_e, 4)
+    centers, a_eff, sig_core, sig_shower, sig_tot = [], [], [], [], []
+
+    for j in range(4):
+        lo, hi = e_edges[j], e_edges[j + 1]
+        m = (ev_e >= lo) & (ev_e <= hi if j == 3 else ev_e < hi)
+        if not np.any(m):
+            continue
+        w = ev_w[m]
+        p = ev_p[m]
+        n = ev_n[m]
+        w_sum = float(np.sum(w))
+        p_bar = float(np.sum(w * p) / w_sum)
+
+        var_core = float(np.sum((w ** 2) * (p * (1.0 - p) / n)) / (w_sum ** 2))
+        var_shower = float(np.sum((w ** 2) * ((p - p_bar) ** 2)) / (w_sum ** 2))
+        var_tot = var_core + var_shower
+
+        centers.append(0.5 * (lo + hi))
+        a_eff.append(area_km2 * p_bar)
+        sig_core.append(area_km2 * math.sqrt(var_core))
+        sig_shower.append(area_km2 * math.sqrt(var_shower))
+        sig_tot.append(area_km2 * math.sqrt(var_tot))
+
+    centers = np.asarray(centers)
+    a_eff = np.asarray(a_eff)
+    sig_core = np.asarray(sig_core)
+    sig_shower = np.asarray(sig_shower)
+    sig_tot = np.asarray(sig_tot)
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.2))
+    ax1.errorbar(centers, a_eff, yerr=sig_tot, fmt="o-", color="black", capsize=4, label="Total Uncertainty")
+    ax1.errorbar(centers, a_eff, yerr=sig_core, fmt="s", color="tab:blue", capsize=3, alpha=0.8, label="Core-Sampling Only")
+    ax1.set_xscale("log")
+    ax1.set_xlabel("Primary Energy (EeV)")
+    ax1.set_ylabel("Effective Area $A_{\\mathrm{eff}}$ (km²)")
+    ax1.set_title(f"Effective Area vs. Energy ($A_{{\\mathrm{{hex}}}} = {area_km2:.1f}$ km²)")
+    ax1.grid(True, which="both", linestyle="--", alpha=0.4)
+    ax1.legend(loc="best", fontsize=9)
+
+    ax2.plot(centers, sig_tot, "o-", color="black", label="Total $\\sigma_{A_{\\mathrm{eff}}}$")
+    ax2.plot(centers, sig_shower, "^--", color="tab:red", label="Shower-to-Shower $\\sigma_{\\mathrm{shower}}$")
+    ax2.plot(centers, sig_core, "s:", color="tab:blue", label="Core-Sampling $\\sigma_{\\mathrm{core}}$")
+    ax2.set_xscale("log")
+    ax2.set_xlabel("Primary Energy (EeV)")
+    ax2.set_ylabel("Uncertainty $\\sigma_{A_{\\mathrm{eff}}}$ (km²)")
+    ax2.set_title("Error Budget: Core-Sampling vs. Shower-to-Shower")
+    ax2.grid(True, which="both", linestyle="--", alpha=0.4)
+    ax2.legend(loc="best", fontsize=9)
+
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=150)
+    plt.close(fig)
+    print(f"Saved: {out_path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Analyze 2D spatial core trigger efficiency from TriggeredEvents.sqlite."
@@ -486,7 +724,7 @@ def main() -> None:
 
     os.makedirs(args.out_dir, exist_ok=True)
     ant_w, ant_n = load_antenna_positions(args.antennas_csv)
-    core_n, core_w, triggered, energy_eev, zenith_deg, azimuth_deg = load_tested_cores(args.db)
+    core_n, core_w, triggered, energy_eev, zenith_deg, azimuth_deg, shower_weight, event_id, area_km2 = load_tested_cores(args.db)
 
     x_edges = np.linspace(float(np.min(core_w)), float(np.max(core_w)), args.bins + 1)
     y_edges = np.linspace(float(np.min(core_n)), float(np.max(core_n)), args.bins + 1)
@@ -545,6 +783,36 @@ def main() -> None:
         ant_w,
         ant_n,
         os.path.join(args.out_dir, "core_counts_total_and_triggered.png"),
+    )
+    plot_unweighted_error_map(
+        core_w,
+        core_n,
+        triggered,
+        x_edges,
+        y_edges,
+        ant_w,
+        ant_n,
+        os.path.join(args.out_dir, "core_trigger_efficiency_error_all.png"),
+    )
+    plot_weighted_efficiency_and_error(
+        core_w,
+        core_n,
+        triggered,
+        shower_weight,
+        x_edges,
+        y_edges,
+        ant_w,
+        ant_n,
+        os.path.join(args.out_dir, "core_trigger_efficiency_weighted_all.png"),
+    )
+    plot_effective_area(
+        triggered,
+        energy_eev,
+        zenith_deg,
+        shower_weight,
+        event_id,
+        area_km2,
+        os.path.join(args.out_dir, "effective_area_vs_energy.png"),
     )
 
 
