@@ -2,9 +2,9 @@
 # ZHAireS Input File generated from SQLite Trigger Database
 # ShowerName        : DeBug_Sib_Iron_0.132_70.3_93.72_2
 # EventName         : DeBug_Sib_Iron_0.132_70.3_93.72_2_r1
-# EventWeight       : 1.200000e-01
-# CorePosition_NWU  : -2532.16 -967.71 0.00
-# XmaxPosition_NWU  : -4492.64 29185.38 10807.26
+# EventWeight       : 1.000000e-01
+# CorePosition_NWU  : -566.24 -810.65 0.00
+# XmaxPosition_NWU  : -2526.73 29342.44 10807.26
 # XmaxDistance_km   : 32.09
 ################################################################################
 
@@ -22,13 +22,19 @@ RandomSeed 0.877867904
 ####################################################################################
 # Antenna List created with CreateAntennaListInp v0.1                              #
 ####################################################################################
-AddAntenna 24      503.12     1503.42       31.76
-AddAntenna 25      511.37      924.37       33.23
-AddAntenna 33      519.48      345.87       32.87
-AddAntenna 38        8.04     1214.21       43.22
-AddAntenna 48       -6.19     1795.25       41.22
-AddAntenna 49       16.94      630.67       43.94
-AddAntenna 53      524.11     -229.61       33.20
+AddAntenna 1       42.77     1076.91        4.28
+AddAntenna 2     -460.95     1356.94       12.25
+AddAntenna 3     -452.04      774.27       12.69
+AddAntenna 6       56.54      488.12        2.96
+AddAntenna 7       36.05     1648.36        8.18
+AddAntenna 9     -448.20      200.35       13.12
+AddAntenna 10      550.78      209.65       -5.05
+AddAntenna 14       55.79      -82.83        4.09
+AddAntenna 29     -443.51     -376.95       13.26
+AddAntenna 30      556.70     -365.72       -5.24
+AddAntenna 36       58.88     -657.29        3.23
+AddAntenna 45     -433.60     -948.02       12.39
+AddAntenna 46      561.87     -937.13       -6.26
 ####################################################################################
 FresnelTime On
 ZHAireS On
@@ -39,13 +45,19 @@ ZHAireS On
 ####################################################################################
 # Expected amplitude at each antenna, from the EventGenerator (its mock model,     #
 # arbitrary units), for reference: AntennaID Amplitude                             #
-# 24 1.060027e-03
-# 25 1.023745e-03
-# 33 9.891618e-04
-# 38 1.044529e-03
-# 48 1.082064e-03
-# 49 1.008625e-03
-# 53 9.563904e-04
+# 1 1.003990e+03
+# 2 1.262016e+02
+# 3 3.472472e+02
+# 6 2.693932e+02
+# 7 1.524390e+02
+# 9 5.692660e+02
+# 10 1.632794e+02
+# 14 2.083195e+02
+# 29 3.408116e+02
+# 30 2.001759e+02
+# 36 3.133029e+02
+# 45 1.444008e+02
+# 46 1.370086e+02
 ####################################################################################
 
 ######################################################################################
@@ -68,14 +80,13 @@ PropagatePrimary On
 #Configure the site
 #------------------------------------------------------------------------------
 # Define a new site (note that the Ground Altitude will be overriden if the GroundAlitude directive is used)
-AddSite GP65NCS 40.96 deg 93.97 deg 1231.00 m
+AddSite Xiaodushan 40.99 deg 93.94 deg 1264.00 m
 # Select the new site
-Site GP65NCS
-#Seting the magnetic field (Values from IGRF 14 for the 2026 05 13, at 10km altitude, for 40.96 deg N  93.97 deg E)
-#
-GeomagneticField 56.466 uT 62.038 deg 0.053 deg
+Site Xiaodushan
+#Seting the magnetic field (if it is not set manually, it will look in IGRF13
+GeomagneticField 56.482 uT 61.6 deg 0.1253 deg
 #Setting the date is irrelevant if we manually set the Magnetic Field, but if not, is used to get the magnetic field for that date
-Date 2026 05 13
+Date 2022 10 26
 
 #Configure the atmosphere
 #------------------------------------------------------------------------------
@@ -145,7 +156,7 @@ CoREASOutput On
 #not a sample and hold logic.
 TimeDomainBin 0.50 ns
 #
-# Check Earth Shadow (default was Off on ZHAireS 1.0.30, but on 1.2 is On so i put it here)
+# Chack Earth Shadow (default was Off on ZHAireS 1.0.30, but now is on so i put it here)
 EarthShadow Off
 #
 End
