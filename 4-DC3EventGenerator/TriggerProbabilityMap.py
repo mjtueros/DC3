@@ -62,6 +62,7 @@ import numpy as np
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "DC3Common"))
 import OutputDatabase
 import Hexagon
+import Antennas
 
 MAP_TABLES_SQL = """
     CREATE TABLE MapCells (
@@ -279,18 +280,24 @@ def hexagon_outline(center, size):
 
 
 def read_antennas(settings, events_db):
-    """The antenna positions of the database's antennas_csv (recorded relative to it), or None if not found."""
+    """
+    The antenna positions (north, west) of the database's antennas_csv (recorded relative to it), in the frame
+    the database was written in (magnetic north since issue #49, the CSV grid before), or None if not found.
+    """
     path = settings.get("antennas_csv")
     if not path:
         return None
     path = os.path.join(os.path.dirname(os.path.abspath(events_db)), path)
     if not os.path.isfile(path):
         return None
-    with open(path) as f:
-        rows = list(csv.DictReader(f))
     try:
+        if settings.get("antenna_frame") == "magnetic":
+            _, positions, _ = Antennas.read_antennas(path, float(settings["magnetic_declination_deg"]))
+            return positions[:, :2]
+        with open(path) as f:
+            rows = list(csv.DictReader(line for line in f if not line.startswith("#")))
         return np.array([[float(r["CS_X_North_m"]), float(r["CS_Y_West_m"])] for r in rows])
-    except KeyError:
+    except (KeyError, ValueError):
         return None
 
 

@@ -34,10 +34,20 @@ python3 ../4-DC3EventGenerator/SimpleEventViewer.py Example_dc3_config_Dummy.ini
 
 All configurable parameters (input database, antenna CSV layout, hexagon dimensions, Cherenkov cone angle, trigger criteria, cores tested per shower, shower reuse factor, distance filters, and dry-run mode) are specified and explained under the `[EventGenerator]` section of the `.ini` file.
 
+## Antenna frame
+
+The shower directions follow the GRAND convention: x points to the magnetic north, y to the west, z up, and the azimuth is measured from the magnetic north towards the west (as in AIRES and CORSIKA). The antennas are put in the same frame (issue #49):
+
+- `CS_X_North_m` and `CS_Y_East_m` in the antenna CSV are coordinates on the map grid of the RTK survey (UTM zone 46N at GP300), whose north is not the geographic north. The generator fits the grid rotation from the `Latitude_deg`, `Longitude_deg` and `Elevation_m` columns of the same file: for GP65 the grid north is 0.63° east of the geographic north (the meridian convergence of the zone at 93.97° E), with a fit rms of 0.3 m.
+- The magnetic north is `magnetic_declination_deg` east of the geographic north (0.1253° in the ZHAireS skeletons; IGRF-14 gives 0.09° for 2025).
+- The horizontal positions are turned by the difference, 0.51° for GP65, which moves the outermost antennas by up to 42 m. The heights are used as they are.
+
+Databases written before this used the grid coordinates unchanged. They are not appended to with the new frame.
+
 If `out_db` already exists, the generator asks before simulating anything:
 
 - `o` overwrites it. The old file is deleted just before the new one is written.
-- `a` appends to it the events that are not in it yet. An event is known by its `EventName`, `<ShowerName>_r<reuse index>`, and the events already there are kept as they are, so appending also resumes an interrupted run. It is only offered when the database was written with the same settings (`showers_db`, `antennas_csv`, `center_n`, `center_w`, `center_u`, `hex_size`, `hex_inner`, `cone_angle`, `min_trigger`, `cores_per_event`, `reuse`, `dist_min` and `dist_max`, recorded in its `RunSettings` table) and holds only events of showers of the same input database, so that all its events are simulated and weighted the same way.
+- `a` appends to it the events that are not in it yet. An event is known by its `EventName`, `<ShowerName>_r<reuse index>`, and the events already there are kept as they are, so appending also resumes an interrupted run. It is only offered when the database was written with the same settings (`showers_db`, `antennas_csv`, `center_n`, `center_w`, `center_u`, `hex_size`, `hex_inner`, `cone_angle`, `min_trigger`, `cores_per_event`, `reuse`, `dist_min`, `dist_max` and `magnetic_declination_deg`, recorded in its `RunSettings` table) and holds only events of showers of the same input database, so that all its events are simulated and weighted the same way.
 - `e` exits without touching it.
 
 The answer is read from the standard input, so it can also be piped in; with nothing to read (e.g. a batch job without input) the generator exits. A dry run writes no database, so it does not ask.

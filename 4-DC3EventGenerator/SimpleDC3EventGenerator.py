@@ -17,6 +17,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "
 import OutputDatabase
 import Hexagon
 import utils
+import Antennas
 
 # ==============================================================================
 # MODULAR CONE SELECTION (Physics / Geometry)
@@ -136,7 +137,9 @@ EVENT_TABLES_SQL = """
     """
 # Settings added after the first databases were written, with the value those were written with: hex_inner is
 # only recorded when it is not 0, so a database without it was written with the whole hexagon.
-SETTING_DEFAULTS = {"hex_inner": "0.0"}
+# Databases written before a setting existed were written as if with this value. Before issue #49 the antennas
+# were used in the grid frame of the CSV, with no rotation to the magnetic north.
+SETTING_DEFAULTS = {"hex_inner": "0.0", "magnetic_declination_deg": "(not applied)", "antenna_frame": "grid"}
 
 def init_database(db_path, run_settings=None):
     """
@@ -233,6 +236,9 @@ def main():
         print("ERROR: cores_per_event and reuse must be at least 1.")
         sys.exit(1)
     
+    # Magnetic declination at the site (deg, east of geographic north): the antenna grid is turned to the
+    # magnetic north with it (issue #49). 0.1253 is the value of the ZHAireS skeletons.
+    magnetic_declination = sec.getfloat("magnetic_declination_deg", fallback=0.1253)
     dist_min = sec.getfloat("dist_min", fallback=0.0)
     dist_max = sec.getfloat("dist_max", fallback=1000.0)
     
@@ -253,6 +259,7 @@ def main():
         print(f"Inner Hexagon:   {hex_inner} m (cores drawn in the ring between the two)")
     print(f"Cone Angle:      {cone_angle} deg")
     print(f"Min Trigger:     {min_trigger} antennas")
+    print(f"Declination:     {magnetic_declination} deg")
     print(f"Cores per Event: {cores_per_event}")
     print(f"Reuse Factor:    {reuse}")
     print(f"Distance Range:  [{dist_min}, {dist_max}] km")
@@ -285,6 +292,8 @@ def main():
         "reuse": str(reuse),
         "dist_min": repr(dist_min),
         "dist_max": repr(dist_max),
+        "magnetic_declination_deg": repr(magnetic_declination),
+        "antenna_frame": "magnetic",
     }
     if hex_inner > 0.0:
         run_settings["hex_inner"] = repr(hex_inner)
@@ -308,21 +317,10 @@ def main():
         sys.exit(1)
 
     print(f"Loading antennas from {antennas_csv}...")
-    ant_ids, ant_pos_list = [], []
-    with open(antennas_csv, mode="r") as f:
-        #the filter(lambda row...) is magic to skip the comments in the file header
-        reader = csv.DictReader(filter(lambda row: row[0]!='#', f))
-              
-        for row in reader:
-            ant_ids.append(row["ID"])
-            ant_pos_list.append(
-                [
-                    float(row["CS_X_North_m"]),
-                    float(row["CS_Y_West_m"]),
-                    float(row["CS_Z_Height_m"]),
-                ]
-            )
-    ant_pos = np.array(ant_pos_list)
+    # Positions in the frame of the shower directions: x = magnetic north, y = west, z = up (issue #49)
+    ant_ids, ant_pos, ant_frame = Antennas.read_antennas(antennas_csv, magnetic_declination)
+    print(f"Grid north is {ant_frame['GridRotation_Deg']:.4f} deg east of geographic north (fit rms {ant_frame['GridFitRMS_m']:.2f} m); "
+          f"antennas turned by {ant_frame['Rotation_Deg']:.4f} deg to magnetic north.")
 
     # 2. INIT DATABASE
     if not dry_run:
