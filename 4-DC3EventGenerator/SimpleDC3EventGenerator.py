@@ -237,7 +237,7 @@ def main():
         sys.exit(1)
     
     # Magnetic declination at the site (deg, east of geographic north): the antenna grid is turned to the
-    # magnetic north with it (issue #49). 0.1253 is the value of the ZHAireS skeletons.
+    # magnetic north with it (issue #49). Use the skeleton's declination; 0.1253 is that of Example.ZHAireS.Skeleton.inp.
     magnetic_declination = sec.getfloat("magnetic_declination_deg", fallback=0.1253)
     dist_min = sec.getfloat("dist_min", fallback=0.0)
     dist_max = sec.getfloat("dist_max", fallback=1000.0)

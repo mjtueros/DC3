@@ -3,9 +3,9 @@ Antenna positions in the GRAND frame used by the simulations: x = magnetic north
 
 The antenna CSV (e.g. GRAND_GP65_RTK_positions_Corrected.csv) gives the positions relative to the central
 station as CS_X_North_m, CS_Y_East_m (CS_Y_West_m = -CS_Y_East_m) and CS_Z_Height_m. Those x/y axes are
-the axes of the map-projection grid the RTK survey was done in (UTM zone 46N at GP300), not geographic
-north: at GP300 the grid north points 0.64 deg east of geographic north (the meridian convergence of UTM
-zone 46N at 93.97 E, 40.96 N). The magnetic north is in turn east of geographic north by the magnetic
+the axes of the map-projection grid the RTK survey was done in (a transverse Mercator grid with central
+meridian 93 E at GP300), not geographic north: at GP300 the grid north points 0.64 deg east of geographic
+north (the meridian convergence at 93.97 E, 40.96 N). The magnetic north is in turn east of geographic north by the magnetic
 declination.
 
 read_antennas() measures the grid rotation from the Latitude_deg and Longitude_deg columns of the same CSV

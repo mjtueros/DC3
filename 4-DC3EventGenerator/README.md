@@ -38,9 +38,9 @@ All configurable parameters (input database, antenna CSV layout, hexagon dimensi
 
 The shower directions follow the GRAND convention: x points to the magnetic north, y to the west, z up, and the azimuth is measured from the magnetic north towards the west (as in AIRES and CORSIKA). The antennas are put in the same frame (issue #49):
 
-- `CS_X_North_m` and `CS_Y_East_m` in the antenna CSV are coordinates on the map grid of the RTK survey (UTM zone 46N at GP300), whose north is not the geographic north. The generator fits the grid rotation from the `Latitude_deg`, `Longitude_deg` and `Elevation_m` columns of the same file: for GP65 the grid north is 0.63° east of the geographic north (the meridian convergence of the zone at 93.97° E), with a fit rms of 0.3 m.
-- The magnetic north is `magnetic_declination_deg` east of the geographic north (0.1253° in the ZHAireS skeletons; IGRF-14 gives 0.09° for 2025).
-- The horizontal positions are turned by the difference, 0.51° for GP65, which moves the outermost antennas by up to 42 m. The heights are used as they are.
+- `CS_X_North_m` and `CS_Y_East_m` in the antenna CSV are coordinates on the map grid of the RTK survey (a transverse Mercator grid with central meridian 93° E at GP300), whose north is not the geographic north. The generator fits the grid rotation from the `Latitude_deg`, `Longitude_deg` and `Elevation_m` columns of the same file: for GP65 the grid north is 0.63° east of the geographic north (the meridian convergence of the zone at 93.97° E), with a fit rms of 0.3 m.
+- The magnetic north is `magnetic_declination_deg` east of the geographic north. Set it to the declination of the skeleton the showers are simulated with, so antennas and showers share one magnetic north: 0.053° in `DC3.ZHAireS.Skeleton.inp`, 0.1253° in `Example.ZHAireS.Skeleton.inp` and the CoREAS examples (the default). IGRF-14 gives 0.09° for GP300 in 2025.
+- The horizontal positions are turned by the difference, 0.51° to 0.58° for GP65 depending on the declination, which moves the outermost antennas by up to 42 m. The heights are used as they are.
 
 Databases written before this used the grid coordinates unchanged. They are not appended to with the new frame.
 
